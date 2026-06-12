@@ -228,7 +228,13 @@ table.mhpi-regions td:first-child{color:var(--text)}
   #timelabel{font-size:12px;min-width:54px}
   #playbtn{width:28px;height:28px;font-size:11px}
   #openflag{font-size:11px;bottom:56px;padding:7px 12px;max-width:92vw;white-space:normal}
-  .sflag .sf-card{width:180px;padding:8px 10px}
+  /* callouts collapse to a name chip; tap to expand */
+  .sflag .sf-card{width:auto;max-width:190px;padding:7px 11px}
+  .sflag .sf-card:not(.expanded) .sf-stat,.sflag .sf-card:not(.expanded) p{display:none}
+  .sflag .sf-card:not(.expanded){display:flex;align-items:center;max-width:230px}
+  .sflag .sf-card:not(.expanded) h5{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+  .sflag .sf-card:not(.expanded)::after{content:" ⊕";color:var(--accent);font-size:11px}
+  .sflag .sf-card.expanded{width:190px}
   .sflag h5{font-size:11px}
   .sflag p{font-size:9px}
   .sflag .sf-stat{font-size:9px}

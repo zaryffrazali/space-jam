@@ -34,6 +34,7 @@ const FRIENDLY = {
   DUKE2:"DUKE 2", DUKE3:"DUKE 3", EKVE:"EKVE Highway",
 };
 const fname = p => FRIENDLY[p] || p;
+const MOBILE = () => window.matchMedia("(max-width:980px)").matches;
 
 /* Opening quarters. The 8 headline corridors carry the paper's authoritative years
    (quarter set to Q1 = "during that year"). KL expressway dates are public record
@@ -147,14 +148,16 @@ async function boot() {
 /* intro: hold on the whole country, then fly into the DASH corridor, then play time.
    The corridor overview card stays hidden until the zoom has landed. */
 function introSequence() {
-  const b = corridorBounds[state.corridor];
-  if (!b) { if (!playTimer) togglePlay(); return; }
+  const b0 = corridorBounds[state.corridor];
+  if (!b0) { if (!playTimer) togglePlay(); return; }
+  const b = mobileTighten(b0);
   hideCorridorCard();
+  const pad = MOBILE() ? 20 : 70, mz = MOBILE() ? 11.3 : 10.6;
   setTimeout(() => {
     const z0 = map.getZoom();
-    map.fitBounds(b, { padding: 70, maxZoom: 10.6, duration: 3200, curve: 1.3, essential: true });
+    map.fitBounds(b, { padding: pad, maxZoom: mz, duration: 3200, curve: 1.3, essential: true });
     // fallback if the animation never moved the camera
-    setTimeout(() => { if (Math.abs(map.getZoom() - z0) < 0.02) map.fitBounds(b, { padding: 70, maxZoom: 10.6, duration: 0 }); }, 3500);
+    setTimeout(() => { if (Math.abs(map.getZoom() - z0) < 0.02) map.fitBounds(b, { padding: pad, maxZoom: mz, duration: 0 }); }, 3500);
     setTimeout(() => { popCorridorCard(); }, 3650);
     setTimeout(() => { if (!playTimer) togglePlay(); }, 3900);
   }, 1400);                                  // a beat on the national view first
@@ -479,10 +482,19 @@ function initMap() {
   });
 }
 
+/* on phones, fit a shrunken box around the corridor core so the zoom lands closer */
+function mobileTighten(b) {
+  if (!MOBILE()) return b;
+  const cx = (b[0][0] + b[1][0]) / 2, cy = (b[0][1] + b[1][1]) / 2, k = 0.45;
+  return [[cx + (b[0][0] - cx) * k, cy + (b[0][1] - cy) * k],
+          [cx + (b[1][0] - cx) * k, cy + (b[1][1] - cy) * k]];
+}
+
 function zoomToCorridor() {
-  const target = state.corridor === "all" ? [[99.5, 0.8], [119.5, 7.5]] : corridorBounds[state.corridor];
+  const target = state.corridor === "all" ? [[99.5, 0.8], [119.5, 7.5]] : mobileTighten(corridorBounds[state.corridor]);
   if (!target) return;
-  const opts = { padding: state.corridor === "all" ? 40 : 60, duration: 1200, maxZoom: 10.5, essential: true };
+  const opts = { padding: MOBILE() ? 20 : (state.corridor === "all" ? 40 : 60),
+                 duration: 1200, maxZoom: MOBILE() ? 11.3 : 10.5, essential: true };
   const z0 = map.getZoom(), c0 = map.getCenter();
   hideCorridorCard();
   map.fitBounds(target, opts);
@@ -614,7 +626,7 @@ function maybeStoryFlag(t) {
     <div class="sf-card"><h5>${f.title}</h5><span class="sf-stat">${f.stat}</span><p>${f.text}</p></div>`;
   document.getElementById("storyflags").appendChild(el);
   const L = { el, anchor: [f.lon, f.lat], key: state.corridor + t,
-              ang: (f.ang ?? -47) * Math.PI / 180, dist: f.dist ?? 150, pos: null };
+              ang: (f.ang ?? -47) * Math.PI / 180, dist: f.dist ?? (MOBILE() ? 80 : 150), pos: null };
   liveFlags.push(L);
   initFlagPos(L);
   positionStoryFlags();
@@ -651,10 +663,17 @@ function makeFlagDraggable(L) {
     e.preventDefault(); e.stopPropagation();
     card.setPointerCapture(e.pointerId);
     card.style.cursor = "grabbing";
+    const x0 = e.clientX, y0 = e.clientY;
     const sx = e.clientX - L.pos.x, sy = e.clientY - L.pos.y;
-    const move = ev => { L.pos = { x: ev.clientX - sx, y: ev.clientY - sy }; layoutFlag(L); };
+    let moved = false;
+    const move = ev => {
+      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 6) moved = true;
+      if (moved) { L.pos = { x: ev.clientX - sx, y: ev.clientY - sy }; layoutFlag(L); }
+    };
     const up = () => { card.style.cursor = "grab";
-      card.removeEventListener("pointermove", move); card.removeEventListener("pointerup", up); };
+      card.removeEventListener("pointermove", move); card.removeEventListener("pointerup", up);
+      if (!moved && MOBILE()) { card.classList.toggle("expanded"); layoutFlag(L); }  // tap = expand/collapse
+    };
     card.addEventListener("pointermove", move);
     card.addEventListener("pointerup", up);
   });
