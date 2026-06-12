@@ -208,8 +208,10 @@ table.mhpi-regions td:first-child{color:var(--text)}
   .brand h1{font-size:14.5px;white-space:normal;line-height:1.25}
   .brand .sub{white-space:normal;font-size:9px}
   #deathstar{position:absolute;top:6px;right:8px;height:48px;margin:0;z-index:0}
-  #controlbox{flex-basis:100%;padding:8px 10px;gap:7px;border-radius:13px}
-  #corridorsel{font-size:13px;padding:7px 30px 7px 10px}
+  #controlbox{flex-basis:100%;width:100%;min-width:0;max-width:100%;padding:8px 10px;gap:7px;border-radius:13px;box-sizing:border-box}
+  #corridorwrap{min-width:0}
+  #corridorsel{font-size:13px;padding:7px 30px 7px 10px;max-width:100%;min-width:0}
+  #layerseg{max-width:100%;min-width:0}
   #layerseg{overflow-x:auto;scrollbar-width:none}
   #layerseg::-webkit-scrollbar{display:none}
   #layerseg button{font-size:11px;padding:8px 11px}

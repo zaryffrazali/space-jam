@@ -505,7 +505,7 @@ function initHeader() {
     <optgroup label="Completed">${completed.map(p => `<option value="${p}">${fname(p)}${OPEN_LABEL(p) ? " · " + OPEN_LABEL(p) : ""}</option>`).join("")}</optgroup>
     <optgroup label="Under construction">${uc.map(p => `<option value="${p}">${fname(p)}</option>`).join("")}</optgroup>`;
   sel.value = state.corridor;
-  sel.onchange = () => { setCorridor(sel.value); zoomToCorridor(); };
+  sel.onchange = () => { setCorridor(sel.value); zoomToCorridor(); autoplayAfterZoom(); };
 
   // layer segmented control
   document.querySelectorAll("#layerseg button").forEach(b =>
@@ -546,6 +546,16 @@ function initHeader() {
     st.textContent = open ? "✕" : "📊";
     if (open) renderSide();   // charts need a fresh layout once visible
   };
+}
+
+/* after picking a corridor: rewind to 2012 Q1 and play its history once the zoom lands */
+function autoplayAfterZoom() {
+  if (state.layer !== "ntl") return;
+  if (playTimer) togglePlay();
+  state.t = 0;
+  document.getElementById("timeslider").value = 0;
+  ensureQuarter(0).then(() => { refreshMapOnly(); updateTimeLabel(); });
+  setTimeout(() => { if (!playTimer) togglePlay(); }, 1550);
 }
 
 function setCorridor(p) {
