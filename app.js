@@ -537,6 +537,15 @@ function initHeader() {
   // tabs
   document.querySelectorAll("#tabs button").forEach(b =>
     b.onclick = () => { state.tab = b.dataset.tab; syncTabs(); renderSide(); writeHash(); });
+
+  // mobile bottom-sheet toggle
+  const st = document.getElementById("sidetoggle");
+  st.onclick = () => {
+    const side = document.getElementById("side");
+    const open = side.classList.toggle("open");
+    st.textContent = open ? "✕" : "📊";
+    if (open) renderSide();   // charts need a fresh layout once visible
+  };
 }
 
 function setCorridor(p) {

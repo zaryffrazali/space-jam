@@ -200,7 +200,38 @@ table.mhpi-regions td:first-child{color:var(--text)}
 .gstep p b{color:var(--text)}
 .gstep .try{display:inline-block;margin-top:5px;font-size:10px;color:var(--accent2);background:#0d1f2e;border:1px solid #1d3a52;border-radius:6px;padding:3px 8px}
 
+/* ---------- mobile ---------- */
+#sidetoggle{display:none}
 @media (max-width:980px){
-  #side{display:none}
-  #timebar{min-width:0;width:calc(100% - 28px)}
+  header{position:relative;gap:8px;padding:8px 12px 10px}
+  .brand{padding-right:64px}
+  .brand h1{font-size:14.5px;white-space:normal;line-height:1.25}
+  .brand .sub{white-space:normal;font-size:9px}
+  #deathstar{position:absolute;top:6px;right:8px;height:48px;margin:0;z-index:0}
+  #controlbox{flex-basis:100%;padding:8px 10px;gap:7px;border-radius:13px}
+  #corridorsel{font-size:13px;padding:7px 30px 7px 10px}
+  #layerseg{overflow-x:auto;scrollbar-width:none}
+  #layerseg::-webkit-scrollbar{display:none}
+  #layerseg button{font-size:11px;padding:8px 11px}
+  #ntlopts,#gdpopts{flex-basis:100%;justify-content:flex-start}
+  #maphint{display:none}
+  #corridorcard{display:none}
+  #layerbadge .title{font-size:10px;padding:4px 8px}
+  .badge{font-size:8px}
+  #legend{max-width:168px;font-size:9px;padding:7px 9px;bottom:64px}
+  #legend .note{display:none}
+  #legend .swatches{display:none}
+  #timebar{min-width:0;width:calc(100% - 16px);bottom:8px;padding:7px 10px;gap:8px}
+  #timebar .mode-note{display:none}
+  #timelabel{font-size:12px;min-width:54px}
+  #playbtn{width:28px;height:28px;font-size:11px}
+  #openflag{font-size:11px;bottom:56px;padding:7px 12px;max-width:92vw;white-space:normal}
+  .sflag .sf-card{width:180px;padding:8px 10px}
+  .sflag h5{font-size:11px}
+  .sflag p{font-size:9px}
+  .sflag .sf-stat{font-size:9px}
+  /* side panel becomes a bottom sheet */
+  #side{display:none;position:fixed;left:0;right:0;bottom:0;top:auto;height:68%;width:100%;z-index:45;border-left:0;border-top:1px solid var(--border);border-radius:16px 16px 0 0;box-shadow:0 -12px 40px #000c}
+  #side.open{display:flex}
+  #sidetoggle{display:flex;position:fixed;right:10px;bottom:64px;z-index:44;width:44px;height:44px;border-radius:50%;border:1px solid var(--accent);background:#171207;color:var(--accent);font-size:18px;align-items:center;justify-content:center;box-shadow:0 6px 20px #000a,0 0 14px #fbbf2433;cursor:pointer}
 }
