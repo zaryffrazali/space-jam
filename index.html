@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Space Jam: Seeing Megaprojects From Space</title>
+<meta name="description" content="Interactive explorer for Malaysia's transport-corridor impact study: nighttime lights (NASA Black Marble), house prices (NAPIC MHPI), district GDP (OpenDOSM) and approved investment (MIDA/CEIC)."/>
+<link rel="stylesheet" href="lib/maplibre-gl.css"/>
+<link rel="stylesheet" href="style.css?v=8"/>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🛰️</text></svg>"/>
+</head>
+<body>
+<div id="loader"><div class="spin"></div><div class="lt" id="loadertext">Loading satellite panel…</div></div>
+
+<div id="app">
+  <header>
+    <div class="brand">
+      <h1>Space Jam: Seeing Megaprojects From Space</h1>
+      <div class="sub">Malaysia transport corridors · 2012–2024 · 1-km nightlights, prices, GDP &amp; investment</div>
+    </div>
+    <img id="deathstar" src="img/death_star.png" alt="" title="That's no moon."/>
+    <div id="controlbox">
+      <div id="corridorwrap">
+        <span class="cw-label">Corridor</span>
+        <select id="corridorsel"></select>
+      </div>
+      <div class="seg" id="layerseg">
+        <button data-layer="ntl" class="active" title="NASA Black Marble radiance, 1-km cells, quarterly">🛰️ Nightlights</button>
+        <button data-layer="gdp" title="OpenDOSM district GDP (real, supply side), annual 2015–2020">🏭 District GDP</button>
+        <button data-layer="mida" title="MIDA approved capital investment by state (CEIC), annual">💰 Investment</button>
+        <button data-layer="mhpi" title="NAPIC house price index, 27 regions, annual">🏠 House prices</button>
+      </div>
+    </div>
+    <div class="hgroup" id="ntlopts">
+      <label class="chk"><input type="checkbox" id="ck-stations" checked/>Stations</label>
+      <label class="chk"><input type="checkbox" id="ck-buffers"/>30-km buffers</label>
+      <label class="chk"><input type="checkbox" id="ck-dim" checked/>Dim others</label>
+    </div>
+    <div class="hgroup" id="gdpopts" style="display:none">
+      <label for="sectorsel">Sector</label>
+      <select id="sectorsel"></select>
+    </div>
+  </header>
+
+  <div id="main">
+    <div id="mapwrap">
+      <div id="map"></div>
+      <div id="layerbadge">
+        <div class="title" id="layertitle"></div>
+        <span class="badge desc" id="descbadge">DESCRIPTIVE — not a causal estimate</span>
+        <span class="badge warn" id="midabadge" style="display:none">MIDA EFFECT NOT IDENTIFIABLE — levels only</span>
+        <div id="corridorcard"></div>
+      </div>
+      <div id="maphint">double-click a corridor route to zoom · click a cell for its history</div>
+      <div id="legend"></div>
+      <div id="openflag"></div>
+      <div id="storyflags"></div>
+      <div id="timebar">
+        <span class="mode-note" id="timemode">quarterly</span>
+        <button id="playbtn" title="play / pause">▶</button>
+        <div class="slider-wrap">
+          <input type="range" id="timeslider" min="0" max="48" value="48" step="1" style="width:100%"/>
+          <span class="slider-flag" id="sliderflag" style="display:none"></span>
+        </div>
+        <div id="timelabel">2024 Q1</div>
+      </div>
+    </div>
+
+    <div id="side">
+      <div id="tabs">
+        <button data-tab="explore" class="active">Explore</button>
+        <button data-tab="guide">Guide</button>
+        <button data-tab="results">Results</button>
+        <button data-tab="construction">Construction</button>
+        <button data-tab="threelens">Three lenses</button>
+        <button data-tab="about">About</button>
+      </div>
+      <div id="sidebody"></div>
+    </div>
+  </div>
+</div>
+
+<script src="lib/maplibre-gl.js"></script>
+<script src="lib/deck.gl.min.js"></script>
+<script src="lib/echarts.min.js"></script>
+<script src="app.js?v=8"></script>
+</body>
+</html>
