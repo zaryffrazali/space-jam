@@ -58,7 +58,7 @@ async function boot() {
       "<code style='color:#fbbf24'>python3 -m http.server 8000</code><br/>" +
       "then visit <b>http://localhost:8000</b> — or use the live GitHub Pages link once deployed.";
     lt.style.cssText = "max-width:480px;text-align:center;line-height:1.7;font-size:13px";
-    document.querySelector("#loader .spin").style.display = "none";
+    const dsEl = document.querySelector("#loader .ds"); if (dsEl) dsEl.style.display = "none";
     return;
   }
   lt.textContent = "Loading metadata…";

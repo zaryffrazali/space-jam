@@ -173,9 +173,8 @@ table.mhpi-regions td:first-child{color:var(--text)}
 
 #loader{position:fixed;inset:0;background:var(--bg);z-index:99;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .4s}
 #loader.hide{opacity:0;pointer-events:none}
-#loader .spin{width:34px;height:34px;border:3px solid #273248;border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+#loader .ds{height:170px;width:auto;animation:dsshake .45s linear infinite;filter:drop-shadow(0 0 28px #22c55e44)}
 #loader .lt{font-size:12px;color:var(--muted)}
-@keyframes spin{to{transform:rotate(360deg)}}
 
 .deck-tooltip{font-family:var(--font)!important;font-size:11px!important;background:#0d1424f2!important;border:1px solid #273248!important;border-radius:10px!important;padding:0!important;color:#e7ecf5!important;line-height:1.45!important;max-width:270px;overflow:hidden}
 .tt-pad{padding:8px 11px}
