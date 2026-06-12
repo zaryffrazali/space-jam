@@ -9,7 +9,7 @@ const DOSM_STATES    = "https://raw.githubusercontent.com/dosm-malaysia/data-ope
 
 const state = {
   layer: "ntl", corridor: "DASH", t: 48,        // t = quarter index for NTL
-  gdpYearIdx: 0, midaYearIdx: 0, gdpSector: "p0",
+  gdpYearIdx: 0, midaYearIdx: 0, mhpiYearIdx: 0, gdpSector: "p0",
   unit: "ntl",                                   // 'ntl' | 'log_sa'
   colorMode: "level",                            // 'level' | 'diff'
   showStations: true, showBuffers: false, dimOthers: true,
@@ -48,6 +48,35 @@ const openIdxOf = p => OPENQ[p] ? meta.quarters.indexOf(OPENQ[p]) : -1;
 const COMPLETED_BY_DATA_END = ["SenaiDesaru","Penang2ndBridge","ETS","LRT_KJ_Ext","LRT_Ampang_Ext",
   "MRT1_SBK","GemasJB","MRT2_SSP","DUKE2","SUKE","DASH","SPE","DUKE3","WCE"];
 const UC_BY_DATA_END = ["ECRL","PanBorneoSabah","PanBorneoSarawak","EKVE","LRT3","RTS_Link"];
+
+/* NAPIC MHPI regions → administrative districts (approximate; only non-trivial
+   mappings listed — all other regions share their district's exact name). */
+const MHPI_REGION_DISTRICTS = {
+  "Kota Tinggi/ Pontian": ["Kota Tinggi","Pontian"],
+  "Tampin & Others": ["Tampin","Jempol","Kuala Pilah","Rembau","Jelebu"],
+  "Jerantut-Lipis-Raub": ["Jerantut","Lipis","Raub"],
+  "Kinta/ Ipoh": ["Kinta"],
+  "Larut Matang": ["Larut Dan Matang"],
+  "Pulau Pinang (Island)": ["Timur Laut","Barat Daya"],
+  "Seberang Perai": ["Seberang Perai Utara","Seberang Perai Tengah","Seberang Perai Selatan"],
+  "Kota Kinabalu-Penampang": ["Kota Kinabalu","Penampang"],
+  "Hulu Langat": ["Ulu Langat"],
+  "Kuala Lumpur Central": ["Kuala Lumpur"],
+  "Kuala Lumpur North": ["Kuala Lumpur"],
+  "Kuala Lumpur South": ["Kuala Lumpur"],
+};
+const normDistrict = s => s.toLowerCase().replace(/^w\.?p\.?\s*/,"").replace(/[^a-z]/g,"");
+let mhpiDistrictMap = null;   // normalized district -> [region keys]
+function buildMhpiDistrictMap() {
+  if (mhpiDistrictMap) return mhpiDistrictMap;
+  mhpiDistrictMap = {};
+  for (const key of Object.keys(mhpiData.regions)) {
+    const reg = key.split("|")[1];
+    const dists = MHPI_REGION_DISTRICTS[reg] || [reg];
+    for (const d of dists) (mhpiDistrictMap[normDistrict(d)] = mhpiDistrictMap[normDistrict(d)] || []).push(key);
+  }
+  return mhpiDistrictMap;
+}
 
 /* ============================= boot ============================= */
 async function boot() {
@@ -96,6 +125,8 @@ async function boot() {
   }
 
   state.t = meta.quarters.length - 1;
+  state.mhpiYearIdx = mhpiData.years.length - 1;
+  state.midaYearIdx = midaData.years.length - 1;
   parseHash();
   // intro plays on the default view (incl. reloads where the hash still points at it);
   // a hash pointing elsewhere = a shared link, so land there directly instead
@@ -236,22 +267,54 @@ function buildLayers() {
   if (state.layer === "gdp" && districtGeo) {
     const year = gdpData.years[state.gdpYearIdx];
     const vals = {};
-    let vmax = 0;
+    const sorted = [];
     for (const [k, sec] of Object.entries(gdpData.data)) {
       const v = sec[state.gdpSector] ? sec[state.gdpSector][year] : undefined;
-      if (v != null) { vals[normKey(k)] = v; if (v > vmax) vmax = v; }
+      if (v != null) { vals[normKey(k)] = v; sorted.push(v); }
     }
-    const lmax = Math.log1p(vmax);
+    sorted.sort((a, b) => a - b);
+    // quantile rank → wide green ramp (dark forest → emerald → lime) for visible contrast
+    const rankT = v => {
+      let lo = 0, hi = sorted.length - 1;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (sorted[m] < v) lo = m + 1; else hi = m; }
+      return sorted.length > 1 ? lo / (sorted.length - 1) : 0;
+    };
+    const ramp = t => t < 0.5
+      ? [Math.round(5 + (16 - 5) * t * 2), Math.round(48 + (165 - 48) * t * 2), Math.round(34 + (108 - 34) * t * 2)]
+      : [Math.round(16 + (190 - 16) * (t - 0.5) * 2), Math.round(165 + (242 - 165) * (t - 0.5) * 2), Math.round(108 + (90 - 108) * (t - 0.5) * 2)];
     layers.push(new deck.GeoJsonLayer({
       id: "gdp-choro", data: districtGeo, pickable: true, stroked: true, filled: true,
       getLineColor: [13, 20, 36, 200], lineWidthMinPixels: 0.6,
       getFillColor: f => {
         const v = vals[normKey(f.properties.state + "|" + f.properties.district)];
         if (v == null) return [40, 50, 70, 60];
-        const t = Math.log1p(v) / lmax;
-        return [Math.round(20+40*t), Math.round(80+150*t), Math.round(120+90*t), 200];
+        return [...ramp(rankT(v)), 215];
       },
       updateTriggers: { getFillColor: [year, state.gdpSector] },
+    }));
+  }
+
+  if (state.layer === "mhpi" && districtGeo) {
+    const yi = state.mhpiYearIdx;
+    const dmap = buildMhpiDistrictMap();
+    const cellVals = [];
+    const valFor = nd => {
+      const regs = dmap[nd]; if (!regs) return null;
+      const vs = regs.map(k => mhpiData.regions[k].mhpi[yi]).filter(v => v != null);
+      return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
+    };
+    for (const nd of Object.keys(dmap)) { const v = valFor(nd); if (v != null) cellVals.push(v); }
+    const vmin = Math.min(...cellVals), vmax = Math.max(...cellVals);
+    layers.push(new deck.GeoJsonLayer({
+      id: "mhpi-choro", data: districtGeo, pickable: true, stroked: true, filled: true,
+      getLineColor: [13, 20, 36, 200], lineWidthMinPixels: 0.6,
+      getFillColor: f => {
+        const v = valFor(normDistrict(f.properties.district));
+        if (v == null) return [40, 50, 70, 50];
+        const t = vmax > vmin ? (v - vmin) / (vmax - vmin) : 0.5;
+        return [Math.round(70 + 174 * t), Math.round(28 + 86 * t), Math.round(112 + 70 * t), 215];
+      },
+      updateTriggers: { getFillColor: [yi] },
     }));
   }
 
@@ -365,6 +428,15 @@ function getTooltip({ layer, object, index }) {
     return { html: `<b>${pr.district}</b>, ${pr.state}<br/>${gdpData.sectors[state.gdpSector]} ${year}:
       <b>${v != null ? "RM " + fmtNum(v) + " mn" : "n/a"}</b><br/><i style="color:#8b97ad">real 2015 prices · OpenDOSM</i>` };
   }
+  if (layer.id === "mhpi-choro" && object) {
+    const pr = object.properties, year = mhpiData.years[state.mhpiYearIdx];
+    const regs = buildMhpiDistrictMap()[normDistrict(pr.district)];
+    if (!regs) return { html: `<div class="tt-pad"><b>${pr.district}</b>, ${pr.state}<br/>not covered by a NAPIC MHPI region</div>` };
+    const rows = regs.map(k => { const v = mhpiData.regions[k].mhpi[state.mhpiYearIdx];
+      return `${k.split("|")[1]}: <b>${v != null ? v : "n/a"}</b>`; }).join("<br/>");
+    return { html: `<div class="tt-pad"><b>${pr.district}</b>, ${pr.state} · ${year}<br/>${rows}
+      <br/><i style="color:#8b97ad">MHPI, 2010=100 · NAPIC region(s), approximate boundaries</i></div>` };
+  }
   if (layer.id === "mida-choro" && object) {
     const pr = object.properties, year = midaData.years[state.midaYearIdx];
     const key = Object.keys(midaData.states).find(k => normState(k) === normState(pr.state));
@@ -457,6 +529,7 @@ function initHeader() {
     if (state.layer === "ntl") { state.t = +sl.value; await ensureQuarter(state.t); }
     else if (state.layer === "gdp") state.gdpYearIdx = +sl.value;
     else if (state.layer === "mida") state.midaYearIdx = +sl.value;
+    else if (state.layer === "mhpi") state.mhpiYearIdx = +sl.value;
     refreshMapOnly(); updateTimeLabel(); writeHash();
   };
   document.getElementById("playbtn").onclick = togglePlay;
@@ -493,6 +566,7 @@ function togglePlay() {
     }
     else if (state.layer === "gdp") state.gdpYearIdx = v;
     else if (state.layer === "mida") state.midaYearIdx = v;
+    else if (state.layer === "mhpi") state.mhpiYearIdx = v;
     refreshMapOnly(); updateTimeLabel();
   }, 200);
 }
@@ -605,11 +679,12 @@ function syncLayerUI() {
   if (state.layer === "ntl") { tb.style.display = ""; sl.max = meta.quarters.length - 1; sl.value = state.t; tm.textContent = "quarterly · 2012 Q1 – 2024 Q1"; }
   else if (state.layer === "gdp") { tb.style.display = ""; sl.max = gdpData.years.length - 1; sl.value = state.gdpYearIdx; tm.textContent = "annual · " + gdpData.years[0] + "–" + gdpData.years[gdpData.years.length-1]; }
   else if (state.layer === "mida") { tb.style.display = ""; sl.max = midaData.years.length - 1; sl.value = state.midaYearIdx; tm.textContent = "annual · " + midaData.years[0] + "–" + midaData.years[midaData.years.length-1]; }
+  else if (state.layer === "mhpi") { tb.style.display = ""; sl.max = mhpiData.years.length - 1; sl.value = state.mhpiYearIdx; tm.textContent = "annual · " + mhpiData.years[0] + "–" + mhpiData.years[mhpiData.years.length-1]; }
   else tb.style.display = "none";
   const titles = { ntl: "🛰️ NASA Black Marble nighttime radiance — 1-km cells",
                    gdp: "🏭 District GDP, real (2015 prices) — OpenDOSM",
                    mida: "💰 Approved capital investment by state — MIDA / CEIC",
-                   mhpi: "🏠 House price index (MHPI) — NAPIC · see panel →" };
+                   mhpi: "🏠 House price index (MHPI) — NAPIC, regions mapped to districts" };
   document.getElementById("layertitle").textContent = titles[state.layer];
   updateTimeLabel();
   placeSliderFlag();
@@ -622,6 +697,7 @@ function updateTimeLabel() {
   if (state.layer === "ntl") el.textContent = qlabel(state.t);
   else if (state.layer === "gdp") el.textContent = gdpData.years[state.gdpYearIdx];
   else if (state.layer === "mida") el.textContent = midaData.years[state.midaYearIdx];
+  else if (state.layer === "mhpi") el.textContent = mhpiData.years[state.mhpiYearIdx];
 }
 
 function syncTabs() {
@@ -690,9 +766,9 @@ function renderLegend() {
       <div class="note">Log-scaled levels. Shown as levels (nW), not %, because percentage changes off near-dark rural cells are misleading.</div>`;
   } else if (state.layer === "gdp") {
     lg.innerHTML = `<b style="color:#e7ecf5">District GDP (RM mn, real)</b>
-      <div class="bar" style="background:linear-gradient(90deg,#14506e,#2a9d8f,#3cd6d0)"></div>
-      <div class="ticks"><span>low</span><span>high (log scale)</span></div>
-      <div class="note">OpenDOSM, supply side, 2015 prices, ${gdpData.years[0]}–${gdpData.years[gdpData.years.length-1]}. Descriptive — this study draws <b>no</b> NTL→GDP link.</div>
+      <div class="bar" style="background:linear-gradient(90deg,#053022,#10a56c,#bef25a)"></div>
+      <div class="ticks"><span>lowest</span><span>quantile rank</span><span>highest</span></div>
+      <div class="note">OpenDOSM, supply side, 2015 prices, ${gdpData.years[0]}–${gdpData.years[gdpData.years.length-1]}. Colour = rank among districts that year, so contrasts stay visible. Descriptive — this study draws <b>no</b> NTL→GDP link.</div>
       ${districtGeo ? "" : `<div class="note" style="color:#fca5a5">${districtGeoFailed ? "Could not fetch DOSM boundaries (offline?)." : "Fetching district boundaries…"}</div>`}`;
   } else if (state.layer === "mida") {
     lg.innerHTML = `<b style="color:#e7ecf5">Approved investment (RM mn)</b>
@@ -701,8 +777,11 @@ function renderLegend() {
       <div class="note">MIDA approvals via CEIC. Lumpy and volatile; the corridor <b>effect is not identifiable</b> in this lens — levels only.</div>
       ${stateGeo ? "" : `<div class="note" style="color:#fca5a5">${stateGeoFailed ? "Could not fetch DOSM boundaries (offline?)." : "Fetching state boundaries…"}</div>`}`;
   } else {
-    lg.innerHTML = `<b style="color:#e7ecf5">House prices (NAPIC MHPI)</b>
-      <div class="note">27 NAPIC regions have no published polygon boundaries, so MHPI is shown as time series in the side panel rather than painted on the map. Routes &amp; stations stay for orientation.</div>`;
+    lg.innerHTML = `<b style="color:#e7ecf5">House prices (NAPIC MHPI, 2010=100)</b>
+      <div class="bar" style="background:linear-gradient(90deg,#461c70,#a855f7,#f472b6)"></div>
+      <div class="ticks"><span>${"low"}</span><span>index level</span><span>high</span></div>
+      <div class="note"><b>Approximate boundaries:</b> NAPIC publishes MHPI by valuation region, not district. Regions are matched to districts by name (multi-district regions share one value; KL's three sub-areas are averaged over one polygon). Grey = no NAPIC coverage.</div>
+      ${districtGeo ? "" : `<div class="note" style="color:#fca5a5">${districtGeoFailed ? "Could not fetch DOSM boundaries (offline?)." : "Fetching district boundaries…"}</div>`}`;
   }
 }
 
