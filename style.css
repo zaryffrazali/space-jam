@@ -136,7 +136,7 @@ select{background:var(--panel2);color:var(--text);border:2px solid var(--border)
 #layerbadge .title{background:var(--panel);border:2px solid var(--border);border-radius:0;padding:6px 10px;font-size:11px;backdrop-filter:blur(6px);box-shadow:var(--hard-s)}
 
 /* zoom hint */
-#maphint{position:absolute;top:14px;right:16px;z-index:10;background:var(--panel);border:2px solid var(--border);border-radius:0;padding:5px 9px;font-size:10px;color:var(--muted);backdrop-filter:blur(6px);box-shadow:var(--hard-s)}
+#maphint{position:absolute;top:14px;right:62px;z-index:10;background:var(--panel);border:2px solid var(--border);border-radius:0;padding:5px 9px;font-size:10px;color:var(--muted);backdrop-filter:blur(6px);box-shadow:var(--hard-s)}
 
 /* ---------- sidebar ---------- */
 #side{width:400px;flex:none;background:var(--panel-solid);border-left:2px solid var(--border);display:flex;flex-direction:column;min-height:0}

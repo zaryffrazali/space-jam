@@ -81,6 +81,7 @@ function buildMhpiDistrictMap() {
 
 /* ============================= boot ============================= */
 async function boot() {
+  const bootStart = Date.now();   // enforce a minimum loader time (arcade "boot" feel)
   const lt = document.getElementById("loadertext");
   if (location.protocol === "file:") {
     lt.innerHTML = "This dashboard can't run from a double-clicked file — browsers block data loading on <code>file://</code>.<br/><br/>" +
@@ -140,6 +141,9 @@ async function boot() {
   if (intro) state.t = 0;               // intro autoplay starts from 2012 Q1
   await ensureQuarter(state.t);
   refreshAll();
+  // hold the loader for at least 2.5s (every load/refresh) for the arcade boot feel
+  const wait = Math.max(0, 2500 - (Date.now() - bootStart));
+  await new Promise(r => setTimeout(r, wait));
   document.getElementById("loader").classList.add("hide");
   // background fetch of remote boundaries (non-blocking)
   fetchBoundaries();
@@ -633,9 +637,9 @@ function togglePlay() {
    panel itself (3-km windows, 2012 avg vs 2023/24 avg); local context is public record. */
 const STORY = {
   DASH: [
-    { t: 8, lon: 101.54, lat: 3.15, ang: 47, title: "Watching from orbit", stat: "NASA Black Marble · 1-km",
+    { t: 3, lon: 101.54, lat: 3.15, ang: -133, title: "Watching from orbit", stat: "NASA Black Marble · 1-km",
       text: "Satellite imagery shows areas near a major infrastructure project <b>brightening significantly</b> over time — watch it unfold." },
-    { t: 18, lon: 101.51, lat: 3.155, ang: -133, title: "Elmina / Denai Alam", stat: "≈21 → ≈36 nW · ×1.7",
+    { t: 18, lon: 101.51, lat: 3.155, ang: 47, title: "Elmina / Denai Alam", stat: "≈21 → ≈36 nW · ×1.7",
       text: "Fastest-brightening spot on the corridor — Sime Darby's <b>City of Elmina</b> township." },
     { t: 30, lon: 101.565, lat: 3.175, ang: -47, title: "Kwasa Damansara / Sungai Buloh", stat: "≈29 → ≈34 nW",
       text: "<b>EPF</b> township on the <b>MRT 1 + Putrajaya Line</b> terminus." },
@@ -653,7 +657,7 @@ function maybeStoryFlag(t) {
     <div class="sf-card"><h5>${f.title}</h5><span class="sf-stat">${f.stat}</span><p>${f.text}</p></div>`;
   document.getElementById("storyflags").appendChild(el);
   const L = { el, anchor: [f.lon, f.lat], key: state.corridor + t,
-              ang: (f.ang ?? -47) * Math.PI / 180, dist: f.dist ?? (MOBILE() ? 80 : 150), pos: null };
+              ang: (f.ang ?? -47) * Math.PI / 180, dist: f.dist ?? (MOBILE() ? 80 : 95), pos: null };
   liveFlags.push(L);
   initFlagPos(L);
   positionStoryFlags();
