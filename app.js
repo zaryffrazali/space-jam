@@ -637,7 +637,7 @@ function togglePlay() {
    panel itself (3-km windows, 2012 avg vs 2023/24 avg); local context is public record. */
 const STORY = {
   DASH: [
-    { t: 3, lon: 101.54, lat: 3.15, ang: -133, title: "Watching from orbit", stat: "NASA Black Marble · 1-km",
+    { t: 3, lon: 101.485, lat: 3.135, ang: -150, title: "Watching from orbit", stat: "NASA Black Marble · 1-km",
       text: "Satellite imagery shows areas near a major infrastructure project <b>brightening significantly</b> over time — watch it unfold." },
     { t: 18, lon: 101.51, lat: 3.155, ang: 47, title: "Elmina / Denai Alam", stat: "≈21 → ≈36 nW · ×1.7",
       text: "Fastest-brightening spot on the corridor — Sime Darby's <b>City of Elmina</b> township." },
