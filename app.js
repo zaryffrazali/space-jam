@@ -376,6 +376,7 @@ function buildLayers() {
           getFillColor: { value: cellColors(arr), size: 4 },
         }},
         cellSize: 1000, extruded: false, getElevation: 0,
+        material: false,            // flat unlit fill — otherwise cell tops render dark on mobile GPUs
         updateTriggers: trig,
       }));
     } else if (arr) {
