@@ -697,9 +697,18 @@ function layoutFlag(L) {
 }
 function positionStoryFlags() {
   if (!map || !liveFlags.length) return;
+  const rect = map.getContainer().getBoundingClientRect();
   for (const L of liveFlags) {
     const pt = map.project(L.anchor);
     L.el.style.left = pt.x + "px"; L.el.style.top = pt.y + "px";
+    // keep the card on-screen: clamp its offset so dot+pos+card stays within the map
+    const card = L.el.querySelector(".sf-card");
+    const w = card.offsetWidth || 150, h = card.offsetHeight || 40, m = 6;
+    if (L.pos) {
+      L.pos.x = Math.max(m - pt.x, Math.min(rect.width - m - w - pt.x, L.pos.x));
+      L.pos.y = Math.max(m - pt.y, Math.min(rect.height - m - h - pt.y, L.pos.y));
+      layoutFlag(L);
+    }
   }
 }
 function makeFlagDraggable(L) {

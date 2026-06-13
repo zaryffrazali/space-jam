@@ -285,15 +285,16 @@ header{border-bottom:2px solid var(--border);box-shadow:none}
   #timelabel{font-size:10px;min-width:54px}
   #playbtn{width:28px;height:28px;font-size:11px}
   #openflag{font-size:10px;bottom:56px;padding:7px 12px;max-width:92vw;white-space:normal}
-  .sflag .sf-card{width:auto;max-width:190px;padding:7px 11px}
+  .sflag .sf-leader{width:60px!important}
+  .sflag .sf-card{width:auto;max-width:150px;padding:5px 8px}
   .sflag .sf-card:not(.expanded) .sf-stat,.sflag .sf-card:not(.expanded) p{display:none}
-  .sflag .sf-card:not(.expanded){display:flex;align-items:center;max-width:230px}
-  .sflag .sf-card:not(.expanded) h5{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
-  .sflag .sf-card:not(.expanded)::after{content:" ⊕";color:var(--accent);font-size:11px}
-  .sflag .sf-card.expanded{width:190px}
-  .sflag h5{font-size:9px}
-  .sflag p{font-size:9px}
-  .sflag .sf-stat{font-size:8px}
+  .sflag .sf-card:not(.expanded){display:flex;align-items:center;max-width:150px}
+  .sflag .sf-card:not(.expanded) h5{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:124px}
+  .sflag .sf-card:not(.expanded)::after{content:"⊕";color:var(--accent);font-size:9px;margin-left:4px;flex:none}
+  .sflag .sf-card.expanded{width:160px}
+  .sflag h5{font-size:7.5px;letter-spacing:0}
+  .sflag p{font-size:8.5px}
+  .sflag .sf-stat{font-size:7.5px;padding:2px 5px}
   #side{display:none;position:fixed;left:0;right:0;bottom:0;top:auto;height:68%;width:100%;z-index:45;border-left:0;border-top:2px solid var(--border);border-radius:0;box-shadow:0 -12px 40px #000c}
   #side.open{display:flex}
   #sidetoggle{display:flex;position:fixed;right:10px;bottom:64px;z-index:44;width:44px;height:44px;border-radius:0;border:2px solid var(--accent);background:#171207;color:var(--accent);font-size:18px;align-items:center;justify-content:center;box-shadow:var(--hard-s);cursor:pointer}
