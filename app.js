@@ -135,6 +135,7 @@ async function boot() {
   buildLUTs();
   initHeader();
   initMap();
+  buildQBlocks();
   lt.textContent = "TUNING CRT · LOADING QUARTER";
   if (intro) state.t = 0;               // intro autoplay starts from 2012 Q1
   await ensureQuarter(state.t);
@@ -236,6 +237,18 @@ async function ensureBaseline() {
 }
 
 /* =========================== deck layers ========================== */
+// GridCellLayer anchors at the cell's SW corner; shift centroids by half a cell (~0.0045°)
+let _offsetPos = null;
+function offsetPositions() {
+  if (_offsetPos) return _offsetPos;
+  _offsetPos = new Float32Array(positions.length);
+  for (let i = 0; i < positions.length; i += 2) {
+    _offsetPos[i] = positions[i] - 0.0045;
+    _offsetPos[i+1] = positions[i+1] - 0.0045;
+  }
+  return _offsetPos;
+}
+
 function cellColors(arr) {
   const n = meta.n_cells, out = new Uint8Array(n * 4);
   const selIdx = state.corridor === "all" ? -1 : meta.projects.indexOf(state.corridor);
@@ -353,15 +366,29 @@ function buildLayers() {
 
   if (state.layer === "ntl") {
     const arr = quarterCache.get(meta.tid_of[meta.quarters[state.t]]);
-    if (arr) layers.push(new deck.ScatterplotLayer({
-      id: "ntl-cells", pickable: true,
-      data: { length: meta.n_cells, attributes: {
-        getPosition: { value: positions, size: 2 },
-        getFillColor: { value: cellColors(arr), size: 4 },
-      }},
-      getRadius: 650, radiusUnits: "meters", radiusMinPixels: 1.1, radiusMaxPixels: 14,
-      updateTriggers: { getFillColor: [state.t, state.corridor, state.dimOthers, state.colorMode] },
-    }));
+    const trig = { getFillColor: [state.t, state.corridor, state.dimOthers, state.colorMode] };
+    // square pixel cells when zoomed in; scatter at country view (186k GridCells are heavy far out)
+    if (arr && (map ? map.getZoom() : 9) >= 7) {
+      layers.push(new deck.GridCellLayer({
+        id: "ntl-cells", pickable: true,
+        data: { length: meta.n_cells, attributes: {
+          getPosition: { value: offsetPositions(), size: 2 },   // corner-anchored
+          getFillColor: { value: cellColors(arr), size: 4 },
+        }},
+        cellSize: 1000, extruded: false, getElevation: 0,
+        updateTriggers: trig,
+      }));
+    } else if (arr) {
+      layers.push(new deck.ScatterplotLayer({
+        id: "ntl-cells", pickable: true,
+        data: { length: meta.n_cells, attributes: {
+          getPosition: { value: positions, size: 2 },
+          getFillColor: { value: cellColors(arr), size: 4 },
+        }},
+        getRadius: 650, radiusUnits: "meters", radiusMinPixels: 1.1, radiusMaxPixels: 14,
+        updateTriggers: trig,
+      }));
+    }
   }
 
   // corridor routes (always on; the spatial spine)
@@ -456,12 +483,18 @@ const qlabel = t => meta.quarters[t].replace("-", " ");
 function initMap() {
   map = new maplibregl.Map({
     container: "map",
-    style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+    style: "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json",
     center: [104.5, 4.0], zoom: 5.4, minZoom: 4, maxZoom: 14, attributionControl: { compact: true },
     doubleClickZoom: false,
   });
   map.on("error", () => {});  // offline-tolerant: deck still renders
   map.on("move", positionStoryFlags);
+  // re-render NTL when crossing the square-cell zoom threshold (7)
+  let _wasZoomedIn = map.getZoom() >= 7;
+  map.on("zoomend", () => {
+    const now = map.getZoom() >= 7;
+    if (now !== _wasZoomedIn && state.layer === "ntl") { _wasZoomedIn = now; refreshMapOnly(); }
+  });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
   overlay = new deck.MapboxOverlay({
@@ -697,12 +730,24 @@ function maybeOpeningFlag(t) {
 }
 
 function placeSliderFlag() {
-  const f = document.getElementById("sliderflag");
-  const oi = state.layer === "ntl" && state.corridor !== "all" ? openIdxOf(state.corridor) : -1;
-  if (oi < 0) { f.style.display = "none"; return; }
-  f.style.display = "";
-  f.style.left = (oi / (meta.quarters.length - 1) * 100) + "%";
-  f.title = fname(state.corridor) + " opens " + OPEN_LABEL(state.corridor);
+  // .slider-flag is hidden by the CRT CSS; the blocky track's magenta notch marks the opening
+  updateQBlocks();
+}
+function buildQBlocks() {
+  const w = document.getElementById("qblocks");
+  if (w) w.innerHTML = meta.quarters.map(() => "<i></i>").join("");
+}
+function updateQBlocks() {
+  const blocks = document.querySelectorAll("#qblocks i");
+  if (!blocks.length) return;
+  const show = state.layer === "ntl";
+  document.getElementById("qblocks").style.display = show ? "" : "none";
+  if (!show) return;
+  const openIdx = state.corridor !== "all" ? openIdxOf(state.corridor) : -1;
+  blocks.forEach((b, i) => {
+    b.className = i < state.t ? "on" : i === state.t ? "head" : "";
+    if (i === openIdx) b.classList.add("open-q");
+  });
 }
 
 function syncLayerUI() {
@@ -740,6 +785,7 @@ function updateTimeLabel() {
   else if (state.layer === "gdp") el.textContent = gdpData.years[state.gdpYearIdx];
   else if (state.layer === "mida") el.textContent = midaData.years[state.midaYearIdx];
   else if (state.layer === "mhpi") el.textContent = mhpiData.years[state.mhpiYearIdx];
+  updateQBlocks();
 }
 
 function syncTabs() {

@@ -6,29 +6,33 @@
 <title>Space Jam: Seeing Megaprojects From Space</title>
 <meta name="description" content="Interactive explorer for Malaysia's transport-corridor impact study: nighttime lights (NASA Black Marble), house prices (NAPIC MHPI), district GDP (OpenDOSM) and approved investment (MIDA/CEIC)."/>
 <link rel="stylesheet" href="lib/maplibre-gl.css"/>
-<link rel="stylesheet" href="style.css?v=14"/>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🛰️</text></svg>"/>
+<link rel="stylesheet" href="style.css?v=15"/>
+<link rel="icon" type="image/png" sizes="32x32" href="img/favicon_32.png"/>
+<link rel="icon" type="image/png" sizes="64x64" href="img/favicon_64.png"/>
+<link rel="apple-touch-icon" href="img/favicon_64.png"/>
 </head>
 <body>
-<div id="loader"><img class="ds" src="img/death_star.png" alt=""/><div class="lt" id="loadertext">INSERT COIN · LOADING SATELLITE PANEL</div></div>
+<div id="loader"><img class="ds" src="img/death_star_8bit.png" alt=""/><div class="lt" id="loadertext">INSERT COIN · LOADING SATELLITE PANEL</div></div>
 
 <div id="app">
+  <div id="marquee">
+    <span class="star">★</span>
+    <h1>Space Jam: Seeing Megaprojects From Space</h1>
+    <span class="star c">★</span>
+    <span class="msub">Malaysia transport corridors · 2012–2024 · 1-km nightlights, prices, GDP &amp; investment</span>
+  </div>
   <header>
-    <div class="brand">
-      <h1><span class="star s1">★</span> Space Jam: Seeing Megaprojects From Space <span class="star s2">★</span></h1>
-      <div class="sub">Malaysia transport corridors · 2012–2024 · 1-km nightlights, prices, GDP &amp; investment</div>
-    </div>
-    <img id="deathstar" src="img/death_star.png" alt="" title="That's no moon."/>
+    <img id="deathstar" src="img/death_star_8bit.png" alt="" title="That's no moon."/>
     <div id="controlbox">
       <div id="corridorwrap">
         <span class="cw-label">Corridor</span>
         <select id="corridorsel"></select>
       </div>
       <div class="seg" id="layerseg">
-        <button data-layer="ntl" class="active" title="NASA Black Marble radiance, 1-km cells, quarterly">🛰️ Nightlights</button>
-        <button data-layer="gdp" title="OpenDOSM district GDP (real, supply side), annual 2015–2020">🏭 District GDP</button>
-        <button data-layer="mida" title="MIDA approved capital investment by state (CEIC), annual">💰 Investment</button>
-        <button data-layer="mhpi" title="NAPIC house price index, 27 regions, annual">🏠 House prices</button>
+        <button data-layer="ntl" class="active" title="NASA Black Marble radiance, 1-km cells, quarterly">Nightlights</button>
+        <button data-layer="gdp" title="OpenDOSM district GDP (real, supply side), annual 2015–2020">District GDP</button>
+        <button data-layer="mida" title="MIDA approved capital investment by state (CEIC), annual">Investment</button>
+        <button data-layer="mhpi" title="NAPIC house price index, 27 regions, annual">House prices</button>
         <span id="credit">CREDIT 49/49 QTRS</span>
       </div>
     </div>
@@ -60,6 +64,7 @@
         <span class="mode-note" id="timemode">quarterly</span>
         <button id="playbtn" title="play / pause">▶</button>
         <div class="slider-wrap">
+          <div class="qblocks" id="qblocks"></div>
           <input type="range" id="timeslider" min="0" max="48" value="48" step="1" style="width:100%"/>
           <span class="slider-flag" id="sliderflag" style="display:none"></span>
         </div>
@@ -67,7 +72,7 @@
       </div>
     </div>
 
-    <button id="sidetoggle" title="open panels">📊</button>
+    <button id="sidetoggle" title="open panels">▦</button>
     <div id="side">
       <div id="tabs">
         <button data-tab="explore" class="active">Explore</button>
@@ -85,6 +90,6 @@
 <script src="lib/maplibre-gl.js"></script>
 <script src="lib/deck.gl.min.js"></script>
 <script src="lib/echarts.min.js"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

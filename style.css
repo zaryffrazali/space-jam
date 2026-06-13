@@ -1,5 +1,5 @@
 /* ============================================================
-   SPACE JAM — "CRT Cabinet" theme (Pixel A2)
+   SPACE JAM — "CRT Cabinet" theme · ROUND 2
    Drop-in replacement for style.css. No index.html changes
    required; optional enhancements live in HANDOFF.md.
    Fonts: see HANDOFF.md §2 for the woff2 files to add to /fonts.
@@ -217,9 +217,48 @@ table.mhpi-regions td:first-child{color:var(--text)}
   #deathstar,#loader .ds,#loader .lt,.sflag .sf-dot{animation:none}
 }
 
+
+/* ============================================================
+   ROUND 2 ADDITIONS
+   ============================================================ */
+/* marquee strip — sits ABOVE <header>; see HANDOFF2.md §2 for markup */
+#marquee{display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 18px 11px;background:linear-gradient(180deg,#221a44,#0e0b1d);border-bottom:3px solid var(--accent);box-shadow:0 0 30px #ffd23f26;position:relative;z-index:31}
+#marquee h1{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:3px;color:var(--accent);text-shadow:0 0 14px #ffd23fb3,3px 3px 0 #000;text-transform:uppercase;white-space:nowrap}
+#marquee .star{font-family:var(--display);font-size:13px;color:var(--magenta)}
+#marquee .star.c{color:var(--accent2)}
+#marquee .msub{position:absolute;right:18px;font-size:9.5px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;max-width:340px;text-align:right}
+@media (prefers-reduced-motion:no-preference){
+  #marquee .star{animation:mqblink 1s steps(1) infinite}
+  #marquee .star.c{animation-delay:.5s}
+}
+@keyframes mqblink{50%{opacity:.15}}
+/* header keeps the control deck only — brand moved into the marquee */
+header{border-bottom:2px solid var(--border);box-shadow:none}
+
+/* blocky quarter track — JS builds 49 <i> into .qblocks; native input sits
+   invisible on top for drag + a11y (HANDOFF2.md §4) */
+.slider-wrap .qblocks{position:absolute;inset:0;display:flex;gap:2px;align-items:center;pointer-events:none}
+.slider-wrap .qblocks i{flex:1;height:13px;background:var(--panel2);border:1px solid var(--border)}
+.slider-wrap .qblocks i.on{background:var(--accent);border-color:var(--accent)}
+.slider-wrap .qblocks i.head{background:var(--accent2);border-color:var(--accent2)}
+.slider-wrap .qblocks i.open-q{box-shadow:0 -5px 0 var(--magenta)}
+@media (prefers-reduced-motion:no-preference){.slider-wrap .qblocks i.head{animation:mqblink .6s steps(1) infinite}}
+#timeslider{position:relative;z-index:2;opacity:0;height:20px;margin:0;cursor:pointer}
+.slider-flag{display:none} /* replaced by .open-q notch */
+
+/* basemap: land as a whisper under the pixel lights */
+.maplibregl-canvas{filter:brightness(.55) saturate(.4) contrast(1.15)}
+
+/* 8-bit sprite swap (img/death_star_8bit.png) — pixelated already set */
+#deathstar{filter:drop-shadow(0 0 14px #3dff8a40)}
+#loader .ds{filter:drop-shadow(0 0 28px #3dff8a44)}
+
 /* ---------- mobile ---------- */
 #sidetoggle{display:none}
 @media (max-width:980px){
+  #marquee{padding:9px 10px 8px;gap:12px}
+  #marquee h1{font-size:13px;white-space:normal;text-align:center;line-height:1.4}
+  #marquee .msub{display:none}
   header{position:relative;gap:8px;padding:8px 12px 10px}
   .brand{padding-right:64px}
   .brand h1{font-size:13px;white-space:normal;line-height:1.35}
