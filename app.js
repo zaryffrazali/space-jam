@@ -787,19 +787,29 @@ function placeSliderFlag() {
   // .slider-flag is hidden by the CRT CSS; the blocky track's magenta notch marks the opening
   updateQBlocks();
 }
+function curTimeState() {   // {idx, max, openIdx} for the active layer
+  if (state.layer === "gdp")  return { idx: state.gdpYearIdx,  max: gdpData.years.length - 1,  openIdx: -1 };
+  if (state.layer === "mida") return { idx: state.midaYearIdx, max: midaData.years.length - 1, openIdx: -1 };
+  if (state.layer === "mhpi") return { idx: state.mhpiYearIdx, max: mhpiData.years.length - 1, openIdx: -1 };
+  return { idx: state.t, max: meta.quarters.length - 1,
+           openIdx: state.corridor !== "all" ? openIdxOf(state.corridor) : -1 };
+}
+let _qblockN = -1;
 function buildQBlocks() {
-  const w = document.getElementById("qblocks");
-  if (w) w.innerHTML = meta.quarters.map(() => "<i></i>").join("");
+  const w = document.getElementById("qblocks"); if (!w) return;
+  const n = curTimeState().max + 1;
+  if (n === _qblockN) return;            // already the right count
+  _qblockN = n;
+  w.innerHTML = Array.from({ length: n }, () => "<i></i>").join("");
 }
 function updateQBlocks() {
+  buildQBlocks();                         // rebuild if the layer's range changed
   const blocks = document.querySelectorAll("#qblocks i");
   if (!blocks.length) return;
-  const show = state.layer === "ntl";
-  document.getElementById("qblocks").style.display = show ? "" : "none";
-  if (!show) return;
-  const openIdx = state.corridor !== "all" ? openIdxOf(state.corridor) : -1;
+  document.getElementById("qblocks").style.display = "";
+  const { idx, openIdx } = curTimeState();
   blocks.forEach((b, i) => {
-    b.className = i < state.t ? "on" : i === state.t ? "head" : "";
+    b.className = i < idx ? "on" : i === idx ? "head" : "";
     if (i === openIdx) b.classList.add("open-q");
   });
 }
