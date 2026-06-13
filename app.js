@@ -147,8 +147,8 @@ async function boot() {
   if (intro) state.t = 0;               // intro autoplay starts from 2012 Q1
   await ensureQuarter(state.t);
   refreshAll();
-  // hold the loader for at least 2.5s (every load/refresh) for the arcade boot feel
-  const wait = Math.max(0, 2500 - (Date.now() - bootStart));
+  // hold the loader for at least 3.5s (every load/refresh) for the arcade boot feel
+  const wait = Math.max(0, 3500 - (Date.now() - bootStart));
   await new Promise(r => setTimeout(r, wait));
   clearInterval(window.__loaderCycler);
   document.getElementById("loader").classList.add("hide");
