@@ -542,6 +542,49 @@ function zoomToCorridor() {
   }, 1450);
 }
 
+/* custom arcade dropdown over the native <select> (native popups can't be themed on macOS).
+   The <select> stays the source of truth; we mirror its options and fire 'change' on pick. */
+function buildCorridorDropdown(sel) {
+  const wrap = document.getElementById("corridorwrap");
+  if (wrap.querySelector(".dd")) return;
+  const dd = document.createElement("div");
+  dd.className = "dd";
+  dd.innerHTML = `<button class="dd-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"></button>
+    <div class="dd-pop" role="listbox"></div>`;
+  wrap.appendChild(dd);
+  const trigger = dd.querySelector(".dd-trigger"), pop = dd.querySelector(".dd-pop");
+
+  // build options mirroring the select (incl. optgroups)
+  let html = "";
+  for (const node of sel.children) {
+    if (node.tagName === "OPTGROUP") {
+      html += `<div class="dd-group">${node.label}</div>`;
+      for (const o of node.children) html += `<div class="dd-opt" data-v="${o.value}">${o.textContent}</div>`;
+    } else {
+      html += `<div class="dd-opt" data-v="${node.value}">${node.textContent}</div>`;
+    }
+  }
+  pop.innerHTML = html;
+
+  const close = () => { dd.classList.remove("open"); trigger.setAttribute("aria-expanded", "false"); };
+  const open = () => {
+    dd.classList.add("open"); trigger.setAttribute("aria-expanded", "true");
+    const cur = pop.querySelector(".dd-opt.sel"); if (cur) cur.scrollIntoView({ block: "nearest" });
+  };
+  trigger.onclick = e => { e.stopPropagation(); dd.classList.contains("open") ? close() : open(); };
+  pop.onclick = e => {
+    const opt = e.target.closest(".dd-opt"); if (!opt) return;
+    if (sel.value !== opt.dataset.v) { sel.value = opt.dataset.v; sel.dispatchEvent(new Event("change")); }
+    close();
+  };
+  document.addEventListener("click", e => { if (!dd.contains(e.target)) close(); });
+  window.__syncCorridorTrigger = () => {
+    trigger.textContent = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : "—";
+    pop.querySelectorAll(".dd-opt").forEach(o => o.classList.toggle("sel", o.dataset.v === sel.value));
+  };
+  window.__syncCorridorTrigger();
+}
+
 /* ======================== header & controls ====================== */
 function initHeader() {
   // corridor select
@@ -554,6 +597,7 @@ function initHeader() {
     <optgroup label="Under construction">${uc.map(p => `<option value="${p}">${fname(p)}</option>`).join("")}</optgroup>`;
   sel.value = state.corridor;
   sel.onchange = () => { setCorridor(sel.value); zoomToCorridor(); autoplayAfterZoom(); };
+  buildCorridorDropdown(sel);
 
   // layer segmented control
   document.querySelectorAll("#layerseg button").forEach(b =>
@@ -609,6 +653,7 @@ function autoplayAfterZoom() {
 function setCorridor(p) {
   state.corridor = p;
   document.getElementById("corridorsel").value = p;
+  if (window.__syncCorridorTrigger) window.__syncCorridorTrigger();
   clearStoryFlags();
   refreshAll();
 }
@@ -1183,7 +1228,9 @@ function renderThreeLens(el) {
     <div id="tl-charts"></div>
     <div class="note-box">Investment is approved <b>before</b> openings (and is lumpy), lights respond <b>at</b> opening, prices build <b>after</b> — three clocks, one corridor. Magnitudes here are raw series, not effects.</div>`;
   document.getElementById("tlsel").onchange = e => { state.corridor = e.target.value;
-    document.getElementById("corridorsel").value = state.corridor; renderSide(); refreshMapOnly(); };
+    document.getElementById("corridorsel").value = state.corridor;
+    if (window.__syncCorridorTrigger) window.__syncCorridorTrigger();
+    renderSide(); refreshMapOnly(); };
   drawThreeLens(cur);
 }
 function drawThreeLens(proj) {
