@@ -238,7 +238,7 @@ async function ensureBaseline() {
 
 /* =========================== deck layers ========================== */
 let lastCellArr = null;   // most recent loaded quarter, used as fallback so the map never blanks
-// GridCellLayer anchors at the cell's SW corner; shift centroids by half a cell (~0.0045°)
+// (unused) GridCellLayer corner-offset helper, kept harmless in case squares return
 let _offsetPos = null;
 function offsetPositions() {
   if (_offsetPos) return _offsetPos;
@@ -369,22 +369,10 @@ function buildLayers() {
     let arr = quarterCache.get(meta.tid_of[meta.quarters[state.t]]);
     if (arr) lastCellArr = arr; else arr = lastCellArr;   // never blank: reuse last loaded quarter
     const trig = { getFillColor: [state.t, state.corridor, state.dimOthers, state.colorMode] };
-    // Square pixel cells only when PAUSED + desktop + zoomed in. During playback (incl. the
-    // intro autoplay) and on mobile, use the scatter renderer — it colours reliably and is
-    // light enough to animate smoothly. (GridCell tops can render unlit mid-animation.)
-    const squares = arr && !MOBILE() && !playTimer && (map ? map.getZoom() : 9) >= 7;
-    if (squares) {
-      layers.push(new deck.GridCellLayer({
-        id: "ntl-cells", pickable: true,
-        data: { length: meta.n_cells, attributes: {
-          getPosition: { value: offsetPositions(), size: 2 },   // corner-anchored
-          getFillColor: { value: cellColors(arr), size: 4 },
-        }},
-        cellSize: 1000, extruded: false, getElevation: 0,
-        material: false,            // flat unlit fill — otherwise cell tops render dark on mobile GPUs
-        updateTriggers: trig,
-      }));
-    } else if (arr) {
+    // ScatterplotLayer everywhere — colours reliably on every GPU and animates smoothly.
+    // (GridCellLayer rendered unlit/dark on some GPUs; the quantized arcade LUT already
+    // makes these read as chunky pixels.)
+    if (arr) {
       layers.push(new deck.ScatterplotLayer({
         id: "ntl-cells", pickable: true,
         data: { length: meta.n_cells, attributes: {
@@ -495,12 +483,6 @@ function initMap() {
   });
   map.on("error", () => {});  // offline-tolerant: deck still renders
   map.on("move", positionStoryFlags);
-  // re-render NTL when crossing the square-cell zoom threshold (7)
-  let _wasZoomedIn = map.getZoom() >= 7;
-  map.on("zoomend", () => {
-    const now = map.getZoom() >= 7;
-    if (now !== _wasZoomedIn && state.layer === "ntl") { _wasZoomedIn = now; refreshMapOnly(); }
-  });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
   overlay = new deck.MapboxOverlay({
@@ -651,12 +633,12 @@ function togglePlay() {
    panel itself (3-km windows, 2012 avg vs 2023/24 avg); local context is public record. */
 const STORY = {
   DASH: [
+    { t: 8, lon: 101.54, lat: 3.15, ang: 47, title: "Watching from orbit", stat: "NASA Black Marble · 1-km",
+      text: "Satellite imagery shows areas near a major infrastructure project <b>brightening significantly</b> over time — watch it unfold." },
     { t: 18, lon: 101.51, lat: 3.155, ang: -133, title: "Elmina / Denai Alam", stat: "≈21 → ≈36 nW · ×1.7",
       text: "Fastest-brightening spot on the corridor — Sime Darby's <b>City of Elmina</b> township." },
     { t: 30, lon: 101.565, lat: 3.175, ang: -47, title: "Kwasa Damansara / Sungai Buloh", stat: "≈29 → ≈34 nW",
       text: "<b>EPF</b> township on the <b>MRT 1 + Putrajaya Line</b> terminus." },
-    { t: 41, lon: 101.47, lat: 3.10, ang: 47, title: "Puncak Perdana / Setia Alam", stat: "+12 nW",
-      text: "Setia Alam build-out anchored by <b>Setia City Mall</b>." },
   ],
 };
 const liveFlags = [];   // {el, anchor, key, ang, dist, pos:{x,y} card top-left rel. dot}
@@ -738,18 +720,7 @@ function clearStoryFlags() {
 }
 
 let flagTimeout = null;
-function maybeOpeningFlag(t) {
-  const opened = state.corridor === "all"
-    ? meta.projects.filter(p => openIdxOf(p) === t)
-    : (openIdxOf(state.corridor) === t ? [state.corridor] : []);
-  if (!opened.length) return;
-  const el = document.getElementById("openflag");
-  el.innerHTML = `<span class="of-chip">OPENED</span><span>${opened.map(fname).join(" · ")} — ${qlabel(t)}</span>`;
-  el.classList.remove("show"); void el.offsetWidth;  // restart animation
-  el.classList.add("show");
-  clearTimeout(flagTimeout);
-  flagTimeout = setTimeout(() => el.classList.remove("show"), 2200);
-}
+function maybeOpeningFlag(t) { /* opening banner removed — the slider's magenta notch marks the opening */ }
 
 function placeSliderFlag() {
   // .slider-flag is hidden by the CRT CSS; the blocky track's magenta notch marks the opening

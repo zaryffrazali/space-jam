@@ -100,7 +100,7 @@ select{background:var(--panel2);color:var(--text);border:2px solid var(--border)
 #corridorcard .cc-blurb{font-size:9.5px;color:var(--muted);line-height:1.45;margin-top:7px;border-top:1px solid #251f44;padding-top:7px}
 
 /* the Death Star — keep the easter egg, arcade glow */
-#deathstar{order:99;margin-left:auto;align-self:flex-start;height:96px;width:auto;filter:drop-shadow(0 0 14px #53e8ff40);animation:dsshake .45s linear infinite;pointer-events:none;image-rendering:pixelated}
+#deathstar{order:99;margin-left:auto;align-self:flex-start;height:96px;width:auto;filter:drop-shadow(0 0 14px #53e8ff40);pointer-events:none;image-rendering:pixelated}
 @keyframes dsshake{
   0%{transform:rotate(-4deg) translate(0,0)}
   15%{transform:rotate(5deg) translate(2px,-2px)}
