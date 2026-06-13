@@ -94,13 +94,13 @@ async function boot() {
   }
   // cycle arcade flavour text while loading
   const PHRASES = [
-    "INSERT COIN", "LOADING SATELLITE PANEL", "TUNING THE CRT", "ALIGNING ORBIT",
-    "COUNTING PHOTONS OVER SELANGOR", "DEFEATING THE DARK SIDE", "WARMING UP THE SUPERLASER",
-    "BUFFERING 186,103 PIXELS", "CALIBRATING NIGHTLIGHTS", "PRESS START", "READY PLAYER ONE",
+    "INSERT COIN", "ALIGNING ORBIT", "COUNTING PHOTONS OVER SELANGOR",
+    "DEFEATING THE DARK SIDE", "WARMING UP THE SUPERLASER", "BUFFERING 186,103 PIXELS",
+    "BOOTING DEATH STAR OS",
   ];
   let pi = 0;
   lt.textContent = PHRASES[0];
-  const cycler = setInterval(() => { pi = (pi + 1) % PHRASES.length; lt.textContent = PHRASES[pi]; }, 700);
+  const cycler = setInterval(() => { pi = (pi + 1) % PHRASES.length; lt.textContent = PHRASES[pi]; }, 640);
   window.__loaderCycler = cycler;
 
   meta = await (await fetch(DATA + "meta.json")).json();
@@ -147,8 +147,8 @@ async function boot() {
   if (intro) state.t = 0;               // intro autoplay starts from 2012 Q1
   await ensureQuarter(state.t);
   refreshAll();
-  // hold the loader for at least 3.5s (every load/refresh) for the arcade boot feel
-  const wait = Math.max(0, 3500 - (Date.now() - bootStart));
+  // hold the loader for at least 4.5s (every load/refresh) for the arcade boot feel
+  const wait = Math.max(0, 4500 - (Date.now() - bootStart));
   await new Promise(r => setTimeout(r, wait));
   clearInterval(window.__loaderCycler);
   document.getElementById("loader").classList.add("hide");
@@ -261,15 +261,20 @@ function offsetPositions() {
   return _offsetPos;
 }
 
+let displayArr = null;   // forward-filled radiance: a cloudy quarter's gaps keep the last valid reading
 function cellColors(arr) {
   const n = meta.n_cells, out = new Uint8Array(n * 4);
+  // forward-fill data gaps: VIIRS "invalid" cells are cloud/no-composite, NOT darkness,
+  // so carry each cell's most recent valid reading instead of dropping it (was → black frames)
+  if (!displayArr) displayArr = new Uint16Array(n).fill(meta.sentinel);
+  for (let i = 0; i < n; i++) { const v = arr[i]; if (v !== meta.sentinel) displayArr[i] = v; }
   const selIdx = state.corridor === "all" ? -1 : meta.projects.indexOf(state.corridor);
   const dim = state.dimOthers && selIdx >= 0;
   const lut = state.colorMode === "diff" ? LUT_DIFF : LUT_LEVEL;
   const logCap = Math.log1p(RAD_CAP);
   for (let i = 0; i < n; i++) {
-    const v = arr[i];
-    if (v === meta.sentinel) continue; // alpha 0
+    const v = displayArr[i];
+    if (v === meta.sentinel) continue; // alpha 0 — never had a valid reading
     let li;
     if (state.colorMode === "diff") {
       const base = baselineArr[i];
