@@ -237,6 +237,7 @@ async function ensureBaseline() {
 }
 
 /* =========================== deck layers ========================== */
+let lastCellArr = null;   // most recent loaded quarter, used as fallback so the map never blanks
 // GridCellLayer anchors at the cell's SW corner; shift centroids by half a cell (~0.0045°)
 let _offsetPos = null;
 function offsetPositions() {
@@ -365,7 +366,8 @@ function buildLayers() {
   }
 
   if (state.layer === "ntl") {
-    const arr = quarterCache.get(meta.tid_of[meta.quarters[state.t]]);
+    let arr = quarterCache.get(meta.tid_of[meta.quarters[state.t]]);
+    if (arr) lastCellArr = arr; else arr = lastCellArr;   // never blank: reuse last loaded quarter
     const trig = { getFillColor: [state.t, state.corridor, state.dimOthers, state.colorMode] };
     // Square pixel cells only when PAUSED + desktop + zoomed in. During playback (incl. the
     // intro autoplay) and on mobile, use the scatter renderer — it colours reliably and is
@@ -615,27 +617,34 @@ function setCorridor(p) {
 
 function togglePlay() {
   const btn = document.getElementById("playbtn");
-  if (playTimer) { clearInterval(playTimer); playTimer = null; btn.textContent = "▶"; refreshMapOnly(); return; }  // settle into crisp squares
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; btn.textContent = "▶"; refreshMapOnly(); return; }  // settle into crisp squares
   btn.textContent = "❚❚";
   const sl0 = document.getElementById("timeslider");
   if (+sl0.value >= +sl0.max) { sl0.value = 0; if (state.layer === "ntl") state.t = 0; }
-  if (state.layer === "ntl") for (let k = 1; k <= 5; k++) if (state.t + k < meta.quarters.length) ensureQuarter(state.t + k);
-  playTimer = setInterval(async () => {
+  const step = MOBILE() ? 320 : 200;
+  // self-scheduling loop: each NTL frame WAITS for its quarter to load before drawing,
+  // so the map never renders an unloaded (black) quarter; next tick is scheduled after.
+  const tick = async () => {
     const sl = document.getElementById("timeslider");
     let v = +sl.value + 1;
-    if (v > +sl.max) { togglePlay(); return; }   // stop at the end instead of looping
-    sl.value = v;
+    if (v > +sl.max) { togglePlay(); return; }
     if (state.layer === "ntl") {
-      state.t = v; await ensureQuarter(v);
-      for (let k = 1; k <= 4; k++) if (v + k <= +sl.max) ensureQuarter(v + k); // prefetch ahead
-      maybeOpeningFlag(v);
-      maybeStoryFlag(v);
+      const arr = await ensureQuarter(v);     // block until this quarter is in cache
+      if (!playTimer) return;                  // paused while we awaited
+      sl.value = v; state.t = v;
+      for (let k = 1; k <= 5; k++) if (v + k <= +sl.max) ensureQuarter(v + k); // prefetch ahead
+      maybeOpeningFlag(v); maybeStoryFlag(v);
+    } else {
+      sl.value = v;
+      if (state.layer === "gdp") state.gdpYearIdx = v;
+      else if (state.layer === "mida") state.midaYearIdx = v;
+      else if (state.layer === "mhpi") state.mhpiYearIdx = v;
     }
-    else if (state.layer === "gdp") state.gdpYearIdx = v;
-    else if (state.layer === "mida") state.midaYearIdx = v;
-    else if (state.layer === "mhpi") state.mhpiYearIdx = v;
     refreshMapOnly(); updateTimeLabel();
-  }, MOBILE() ? 300 : 200);
+    playTimer = setTimeout(tick, step);
+  };
+  if (state.layer === "ntl") for (let k = 1; k <= 6; k++) if (state.t + k < meta.quarters.length) ensureQuarter(state.t + k);
+  playTimer = setTimeout(tick, step);
 }
 
 /* Story flags for the intro autoplay — locations & radiance figures computed from the
