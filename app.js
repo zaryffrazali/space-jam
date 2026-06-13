@@ -92,10 +92,18 @@ async function boot() {
     const dsEl = document.querySelector("#loader .ds"); if (dsEl) dsEl.style.display = "none";
     return;
   }
-  lt.textContent = "INSERT COIN · LOADING METADATA";
-  meta = await (await fetch(DATA + "meta.json")).json();
+  // cycle arcade flavour text while loading
+  const PHRASES = [
+    "INSERT COIN", "LOADING SATELLITE PANEL", "TUNING THE CRT", "ALIGNING ORBIT",
+    "COUNTING PHOTONS OVER SELANGOR", "DEFEATING THE DARK SIDE", "WARMING UP THE SUPERLASER",
+    "BUFFERING 186,103 PIXELS", "CALIBRATING NIGHTLIGHTS", "PRESS START", "READY PLAYER ONE",
+  ];
+  let pi = 0;
+  lt.textContent = PHRASES[0];
+  const cycler = setInterval(() => { pi = (pi + 1) % PHRASES.length; lt.textContent = PHRASES[pi]; }, 700);
+  window.__loaderCycler = cycler;
 
-  lt.textContent = "LOADING 186,103 GRID CELLS";
+  meta = await (await fetch(DATA + "meta.json")).json();
   const cb = new Uint8Array(await (await fetch(DATA + "cells.bin")).arrayBuffer());
   const n = meta.n_cells, [w, s, e, no] = meta.bbox;
   const qlon = new Uint16Array(cb.buffer, 0, n), qlat = new Uint16Array(cb.buffer, 2 * n, n);
@@ -109,7 +117,6 @@ async function boot() {
     positions[2 * i + 1] = s + qlat[i] / 65535 * (no - s);
   }
 
-  lt.textContent = "LOADING TIME SERIES + RESULTS";
   [tsNTL, results, stationsData, routesGeo, buffersGeo, gdpData, mhpiData, midaData] =
     await Promise.all(["ts_ntl.json","results.json","stations.json","routes.geojson",
                        "buffers.geojson","gdp.json","mhpi.json","mida.json"]
@@ -137,13 +144,13 @@ async function boot() {
   initHeader();
   initMap();
   buildQBlocks();
-  lt.textContent = "TUNING CRT · LOADING QUARTER";
   if (intro) state.t = 0;               // intro autoplay starts from 2012 Q1
   await ensureQuarter(state.t);
   refreshAll();
   // hold the loader for at least 2.5s (every load/refresh) for the arcade boot feel
   const wait = Math.max(0, 2500 - (Date.now() - bootStart));
   await new Promise(r => setTimeout(r, wait));
+  clearInterval(window.__loaderCycler);
   document.getElementById("loader").classList.add("hide");
   // background fetch of remote boundaries (non-blocking)
   fetchBoundaries();
