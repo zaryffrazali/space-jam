@@ -85,16 +85,16 @@ async function boot() {
   if (location.protocol === "file:") {
     lt.innerHTML = "This dashboard can't run from a double-clicked file — browsers block data loading on <code>file://</code>.<br/><br/>" +
       "Serve it over HTTP instead: open Terminal in this folder and run<br/>" +
-      "<code style='color:#fbbf24'>python3 -m http.server 8000</code><br/>" +
+      "<code style='color:#ffd23f'>python3 -m http.server 8000</code><br/>" +
       "then visit <b>http://localhost:8000</b> — or use the live GitHub Pages link once deployed.";
     lt.style.cssText = "max-width:480px;text-align:center;line-height:1.7;font-size:13px";
     const dsEl = document.querySelector("#loader .ds"); if (dsEl) dsEl.style.display = "none";
     return;
   }
-  lt.textContent = "Loading metadata…";
+  lt.textContent = "INSERT COIN · LOADING METADATA";
   meta = await (await fetch(DATA + "meta.json")).json();
 
-  lt.textContent = "Loading 186,103 grid cells…";
+  lt.textContent = "LOADING 186,103 GRID CELLS";
   const cb = new Uint8Array(await (await fetch(DATA + "cells.bin")).arrayBuffer());
   const n = meta.n_cells, [w, s, e, no] = meta.bbox;
   const qlon = new Uint16Array(cb.buffer, 0, n), qlat = new Uint16Array(cb.buffer, 2 * n, n);
@@ -108,7 +108,7 @@ async function boot() {
     positions[2 * i + 1] = s + qlat[i] / 65535 * (no - s);
   }
 
-  lt.textContent = "Loading time series & results…";
+  lt.textContent = "LOADING TIME SERIES + RESULTS";
   [tsNTL, results, stationsData, routesGeo, buffersGeo, gdpData, mhpiData, midaData] =
     await Promise.all(["ts_ntl.json","results.json","stations.json","routes.geojson",
                        "buffers.geojson","gdp.json","mhpi.json","mida.json"]
@@ -135,7 +135,7 @@ async function boot() {
   buildLUTs();
   initHeader();
   initMap();
-  lt.textContent = "Loading latest quarter…";
+  lt.textContent = "TUNING CRT · LOADING QUARTER";
   if (intro) state.t = 0;               // intro autoplay starts from 2012 Q1
   await ensureQuarter(state.t);
   refreshAll();
@@ -187,28 +187,27 @@ async function fetchBoundaries() {
 /* ====================== colour lookup tables ===================== */
 let LUT_LEVEL, LUT_DIFF;
 const LUT_N = 1024, RAD_CAP = 150, DIFF_CAP = 10;
+// arcade radiance ramp — 8 hard steps, no smooth blending (CRT cabinet theme)
+const ARCADE = ["#0d0726","#2b1166","#6b1d92","#c22f68","#ff6b35","#ffc53f","#fff3a3","#ffffff"];
+const hex2rgb = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
 function buildLUTs() {
-  const stops = [
-    [0.00,   8,  6, 30,   0], [0.10,  40, 11, 84,  70], [0.30, 120, 28,109, 140],
-    [0.50, 217, 72, 67, 190], [0.70, 251,155, 53, 228], [0.85, 247,222,107, 246],
-    [1.00, 255,255,234, 255]];
   LUT_LEVEL = new Uint8Array(LUT_N * 4);
   for (let i = 0; i < LUT_N; i++) {
     const t = i / (LUT_N - 1);
-    let a = stops[0], b = stops[stops.length - 1];
-    for (let k = 0; k < stops.length - 1; k++) if (t >= stops[k][0] && t <= stops[k+1][0]) { a = stops[k]; b = stops[k+1]; break; }
-    const f = (t - a[0]) / Math.max(1e-9, b[0] - a[0]);
-    for (let c = 0; c < 4; c++) LUT_LEVEL[i*4+c] = Math.round(a[c+1] + f * (b[c+1] - a[c+1]));
+    const step = Math.min(7, Math.ceil(t * 7));
+    const [r, g, b] = hex2rgb(ARCADE[step]);
+    LUT_LEVEL[i*4] = r; LUT_LEVEL[i*4+1] = g; LUT_LEVEL[i*4+2] = b;
+    LUT_LEVEL[i*4+3] = step === 0 ? 0 : Math.min(255, 70 + step * 26);
   }
-  // diverging: blue (decline) -> transparent -> amber (growth)
+  // diverging, quantized: cyan (decline) <- transparent -> arcade yellow (growth)
   LUT_DIFF = new Uint8Array(LUT_N * 4);
+  const cyan = hex2rgb("#53e8ff"), yel = hex2rgb("#ffd23f");
   for (let i = 0; i < LUT_N; i++) {
     const t = i / (LUT_N - 1) * 2 - 1; // -1..1
-    const m = Math.abs(t);
-    const al = Math.round(Math.min(1, m * 1.6) * 235);
-    if (t < 0) { LUT_DIFF[i*4] = 56;  LUT_DIFF[i*4+1] = 140 + Math.round(49*m); LUT_DIFF[i*4+2] = 248; }
-    else       { LUT_DIFF[i*4] = 251; LUT_DIFF[i*4+1] = 191; LUT_DIFF[i*4+2] = 36; }
-    LUT_DIFF[i*4+3] = al;
+    const step = Math.min(4, Math.ceil(Math.abs(t) * 4));
+    const c = t < 0 ? cyan : yel;
+    LUT_DIFF[i*4] = c[0]; LUT_DIFF[i*4+1] = c[1]; LUT_DIFF[i*4+2] = c[2];
+    LUT_DIFF[i*4+3] = step === 0 ? 0 : Math.round(step / 4 * 235);
   }
 }
 
@@ -347,8 +346,8 @@ function buildLayers() {
     const feats = sel === "all" ? buffersGeo.features : buffersGeo.features.filter(f => f.properties.project === sel);
     layers.push(new deck.GeoJsonLayer({
       id: "buffers", data: { type: "FeatureCollection", features: feats },
-      stroked: true, filled: true, getFillColor: [56, 189, 248, 14],
-      getLineColor: [56, 189, 248, 70], lineWidthMinPixels: 1,
+      stroked: true, filled: true, getFillColor: [83, 232, 255, 14],
+      getLineColor: [83, 232, 255, 70], lineWidthMinPixels: 1,
     }));
   }
 
@@ -371,9 +370,9 @@ function buildLayers() {
     getLineColor: f => {
       const p = f.properties;
       const seld = sel === "all" || p.project === sel;
-      if (p.status === "completed") return [56, 189, 248, seld ? 230 : 90];
-      if (p.status === "under_construction") return [251, 146, 60, seld ? 230 : 90];
-      return [148, 163, 184, seld ? 170 : 60];
+      if (p.status === "completed") return [83, 232, 255, seld ? 230 : 90];
+      if (p.status === "under_construction") return [255, 138, 61, seld ? 230 : 90];
+      return [140, 135, 176, seld ? 170 : 60];
     },
     lineWidthMinPixels: 2, lineWidthMaxPixels: 5, getLineWidth: 800,
     updateTriggers: { getLineColor: [sel] },
@@ -386,7 +385,7 @@ function buildLayers() {
       getPosition: d => [d.lon, d.lat], getRadius: 300, radiusUnits: "meters",
       radiusMinPixels: 3, radiusMaxPixels: 9,
       getFillColor: [10, 14, 26, 235], stroked: true, lineWidthMinPixels: 1.6,
-      getLineColor: d => d.context === "kl" ? [232, 121, 249, 255] : [52, 211, 153, 255],
+      getLineColor: d => d.context === "kl" ? [255, 95, 168, 255] : [52, 211, 153, 255],
     }));
   }
   return layers;
@@ -403,7 +402,7 @@ function getTooltip({ layer, object, index }) {
     const proj = pcode[index] < meta.projects.length ? meta.projects[pcode[index]] : "—";
     return { html: `<b>${qlabel(state.t)}</b> · radiance <b>${v}</b> nW/cm²/sr<br/>
       corridor: ${fname(proj)}<br/>distance: ${(distq[index]/8).toFixed(1)} km (${meta.bands[bcode[index]] || "—"})
-      ${urb[index] ? " · urban" : ""}<br/><i style="color:#8b97ad">click for full 2012–2024 history</i>` };
+      ${urb[index] ? " · urban" : ""}<br/><i style="color:#8c87b0">click for full 2012–2024 history</i>` };
   }
   if (layer.id === "stations" && object) {
     const kl = object.context === "kl";
@@ -422,14 +421,14 @@ function getTooltip({ layer, object, index }) {
     const p = object.properties;
     const ol = OPEN_LABEL(p.project);
     const o = ol ? `opened ${ol}` : (p.status === "under_construction" ? "under construction" : "opened in stages");
-    return { html: `<div class="tt-pad"><b>${fname(p.project)}</b><br/>${p.mode} · ${o}<br/><i style="color:#8b97ad">double-click to zoom</i></div>` };
+    return { html: `<div class="tt-pad"><b>${fname(p.project)}</b><br/>${p.mode} · ${o}<br/><i style="color:#8c87b0">double-click to zoom</i></div>` };
   }
   if (layer.id === "gdp-choro" && object) {
     const pr = object.properties, year = gdpData.years[state.gdpYearIdx];
     const key = Object.keys(gdpData.data).find(k => normKey(k) === normKey(pr.state + "|" + pr.district));
     const v = key ? gdpData.data[key][state.gdpSector]?.[year] : null;
     return { html: `<b>${pr.district}</b>, ${pr.state}<br/>${gdpData.sectors[state.gdpSector]} ${year}:
-      <b>${v != null ? "RM " + fmtNum(v) + " mn" : "n/a"}</b><br/><i style="color:#8b97ad">real 2015 prices · OpenDOSM</i>` };
+      <b>${v != null ? "RM " + fmtNum(v) + " mn" : "n/a"}</b><br/><i style="color:#8c87b0">real 2015 prices · OpenDOSM</i>` };
   }
   if (layer.id === "mhpi-choro" && object) {
     const pr = object.properties, year = mhpiData.years[state.mhpiYearIdx];
@@ -438,7 +437,7 @@ function getTooltip({ layer, object, index }) {
     const rows = regs.map(k => { const v = mhpiData.regions[k].mhpi[state.mhpiYearIdx];
       return `${k.split("|")[1]}: <b>${v != null ? v : "n/a"}</b>`; }).join("<br/>");
     return { html: `<div class="tt-pad"><b>${pr.district}</b>, ${pr.state} · ${year}<br/>${rows}
-      <br/><i style="color:#8b97ad">MHPI, 2010=100 · NAPIC region(s), approximate boundaries</i></div>` };
+      <br/><i style="color:#8c87b0">MHPI, 2010=100 · NAPIC region(s), approximate boundaries</i></div>` };
   }
   if (layer.id === "mida-choro" && object) {
     const pr = object.properties, year = midaData.years[state.midaYearIdx];
@@ -446,7 +445,7 @@ function getTooltip({ layer, object, index }) {
     const v = key ? midaData.states[key][state.midaYearIdx] : null;
     const asg = key ? (midaData.assignments[key] || "—") : "—";
     return { html: `<b>${pr.state}</b><br/>Approved investment ${year}: <b>${v != null ? "RM " + fmtNum(v) + " mn" : "n/a"}</b>
-      <br/>corridor assignment: ${asg}<br/><i style="color:#8b97ad">MIDA via CEIC · descriptive only</i>` };
+      <br/>corridor assignment: ${asg}<br/><i style="color:#8c87b0">MIDA via CEIC · descriptive only</i>` };
   }
   return null;
 }
@@ -731,6 +730,11 @@ function syncLayerUI() {
 }
 
 function updateTimeLabel() {
+  const cr = document.getElementById("credit");
+  if (cr) {
+    cr.style.display = state.layer === "ntl" ? "" : "none";
+    if (state.layer === "ntl") cr.textContent = `CREDIT ${state.t + 1}/${meta.quarters.length} QTRS`;
+  }
   const el = document.getElementById("timelabel");
   if (state.layer === "ntl") el.textContent = qlabel(state.t);
   else if (state.layer === "gdp") el.textContent = gdpData.years[state.gdpYearIdx];
@@ -791,15 +795,15 @@ function renderCorridorCard() {
 function renderLegend() {
   const lg = document.getElementById("legend");
   if (state.layer === "ntl") {
-    const grad = "linear-gradient(90deg,#08061e,#280b54,#781c6d,#d94843,#fb9b35,#f7de6b,#ffffea)";
+    const grad = "linear-gradient(90deg,#0d0726 0 14%,#2b1166 14% 28%,#6b1d92 28% 42%,#c22f68 42% 56%,#ff6b35 56% 70%,#ffc53f 70% 84%,#fff3a3 84% 100%)";
     lg.innerHTML = `<b style="color:#e7ecf5">Radiance (nW/cm²/sr)</b>
       <div class="bar" style="background:${grad}"></div>
       <div class="ticks"><span>0</span><span>1</span><span>5</span><span>20</span><span>75</span><span>150+</span></div>
       <div class="swatches">
-        <div class="sw"><i style="background:#38bdf8"></i>completed corridor</div>
-        <div class="sw"><i style="background:#fb923c"></i>under construction</div>
+        <div class="sw"><i style="background:#53e8ff"></i>completed corridor</div>
+        <div class="sw"><i style="background:#ff8a3d"></i>under construction</div>
         <div class="sw"><i class="dot" style="border:2px solid #34d399"></i>station (intercity)</div>
-        <div class="sw"><i class="dot" style="border:2px solid #e879f9"></i>station (Klang Valley)</div>
+        <div class="sw"><i class="dot" style="border:2px solid #ff5fa8"></i>station (Klang Valley)</div>
       </div>
       <div class="note">Log-scaled levels. Shown as levels (nW), not %, because percentage changes off near-dark rural cells are misleading.</div>`;
   } else if (state.layer === "gdp") {
@@ -810,7 +814,7 @@ function renderLegend() {
       ${districtGeo ? "" : `<div class="note" style="color:#fca5a5">${districtGeoFailed ? "Could not fetch DOSM boundaries (offline?)." : "Fetching district boundaries…"}</div>`}`;
   } else if (state.layer === "mida") {
     lg.innerHTML = `<b style="color:#e7ecf5">Approved investment (RM mn)</b>
-      <div class="bar" style="background:linear-gradient(90deg,#78350f,#d97706,#fbbf24)"></div>
+      <div class="bar" style="background:linear-gradient(90deg,#78350f,#d97706,#ffd23f)"></div>
       <div class="ticks"><span>low</span><span>high (log scale)</span></div>
       <div class="note">MIDA approvals via CEIC. Lumpy and volatile; the corridor <b>effect is not identifiable</b> in this lens — levels only.</div>
       ${stateGeo ? "" : `<div class="note" style="color:#fca5a5">${stateGeoFailed ? "Could not fetch DOSM boundaries (offline?)." : "Fetching state boundaries…"}</div>`}`;
@@ -847,14 +851,14 @@ function mkChart(id, opt) {
   const c = echarts.init(dom, null, { renderer: "canvas" });
   c.setOption(Object.assign({
     backgroundColor: "transparent",
-    textStyle: { fontFamily: "system-ui,-apple-system,sans-serif" },
+    textStyle: { fontFamily: "'IBM Plex Mono',ui-monospace,monospace" },
     animationDuration: 350,
   }, opt));
   charts[id] = c;
 }
-const AXIS = c => ({ axisLine: { lineStyle: { color: "#273248" } }, axisLabel: { color: "#8b97ad", fontSize: 9.5 },
-                     splitLine: { lineStyle: { color: "#1a2338" } }, nameTextStyle: { color: "#8b97ad", fontSize: 9.5 }, ...c });
-const TIP = { trigger: "axis", backgroundColor: "#0d1424", borderColor: "#273248",
+const AXIS = c => ({ axisLine: { lineStyle: { color: "#2e2752" } }, axisLabel: { color: "#8c87b0", fontSize: 9.5 },
+                     splitLine: { lineStyle: { color: "#1c1833" } }, nameTextStyle: { color: "#8c87b0", fontSize: 9.5 }, ...c });
+const TIP = { trigger: "axis", backgroundColor: "#110f1d", borderColor: "#2e2752",
               textStyle: { color: "#e7ecf5", fontSize: 11 } };
 
 /* ---- Explore tab ---- */
@@ -901,20 +905,20 @@ function renderExplore(el) {
         const ob = have.find(b => b !== "0-5km");
         if (ob) { cmp = s.bands[ob]; cmpLabel = `outer ring (${ob})`;
           const sub = el.querySelector(".panel-sub");
-          if (sub) sub.innerHTML += ` <span style="color:#6b7a94">The 20–30 km control ring overlaps neighbouring corridors here, so the comparison uses the outermost available ring (${ob}).</span>`;
+          if (sub) sub.innerHTML += ` <span style="color:#6f6a92">The 20–30 km control ring overlaps neighbouring corridors here, so the comparison uses the outermost available ring (${ob}).</span>`;
         }
       }
       mkChart("ch-nearfar", {
         tooltip: TIP,
-        legend: { textStyle: { color: "#8b97ad", fontSize: 10 }, top: 0 },
+        legend: { textStyle: { color: "#8c87b0", fontSize: 10 }, top: 0 },
         grid: { left: 44, right: 14, top: 28, bottom: 24 },
         xAxis: AXIS({ type: "category", data: tsNTL.quarters.map(q => q.replace("-", " ")) }),
         yAxis: AXIS({ type: "value", name: u === "ntl" ? "nW/cm²/sr" : "log radiance (s.a.)", scale: true }),
         series: [
-          { name: "near (≤5 km)", type: "line", data: s.near[u], showSymbol: false, lineStyle: { width: 2.2, color: "#38bdf8" }, itemStyle: { color: "#38bdf8" },
-            markLine: openIdx >= 0 ? { symbol: "none", label: { formatter: "opening", color: "#fbbf24", fontSize: 9 },
-              lineStyle: { color: "#fbbf24", type: "dashed" }, data: [{ xAxis: openIdx }] } : undefined },
-          ...(cmp ? [{ name: cmpLabel, type: "line", data: cmp[u], showSymbol: false, lineStyle: { width: 2.2, color: "#64748b" }, itemStyle: { color: "#64748b" } }] : []),
+          { name: "near (≤5 km)", type: "line", data: s.near[u], showSymbol: false, lineStyle: { width: 2.2, color: "#53e8ff" }, itemStyle: { color: "#53e8ff" },
+            markLine: openIdx >= 0 ? { symbol: "none", label: { formatter: "opening", color: "#ffd23f", fontSize: 9 },
+              lineStyle: { color: "#ffd23f", type: "dashed" }, data: [{ xAxis: openIdx }] } : undefined },
+          ...(cmp ? [{ name: cmpLabel, type: "line", data: cmp[u], showSymbol: false, lineStyle: { width: 2.2, color: "#5d5784" }, itemStyle: { color: "#5d5784" } }] : []),
         ],
       });
     }
@@ -957,10 +961,10 @@ function renderDrillChart() {
     xAxis: AXIS({ type: "category", data: meta.quarters.map(q => q.replace("-", " ")) }),
     yAxis: AXIS({ type: "value", name: "nW/cm²/sr", scale: true }),
     series: [{ type: "line", data: d.series, showSymbol: false, connectNulls: true,
-      lineStyle: { width: 2, color: "#fbbf24" }, itemStyle: { color: "#fbbf24" },
+      lineStyle: { width: 2, color: "#ffd23f" }, itemStyle: { color: "#ffd23f" },
       areaStyle: { color: "rgba(251,191,36,.08)" },
-      markLine: openIdx >= 0 ? { symbol: "none", label: { formatter: "opening", color: "#fbbf24", fontSize: 9 },
-        lineStyle: { color: "#fbbf24", type: "dashed" }, data: [{ xAxis: openIdx }] } : undefined }],
+      markLine: openIdx >= 0 ? { symbol: "none", label: { formatter: "opening", color: "#ffd23f", fontSize: 9 },
+        lineStyle: { color: "#ffd23f", type: "dashed" }, data: [{ xAxis: openIdx }] } : undefined }],
   });
 }
 
@@ -980,7 +984,7 @@ function renderGDPPanel(el) {
     tooltip: { ...TIP, trigger: "item", formatter: d => `${d.name}<br/>RM ${fmtNum(d.value)} mn` },
     grid: { left: 4, right: 40, top: 6, bottom: 22, containLabel: true },
     xAxis: AXIS({ type: "value", name: "RM mn" }),
-    yAxis: AXIS({ type: "category", data: rows.map(r => r[0]), axisLabel: { color: "#8b97ad", fontSize: 9 } }),
+    yAxis: AXIS({ type: "category", data: rows.map(r => r[0]), axisLabel: { color: "#8c87b0", fontSize: 9 } }),
     series: [{ type: "bar", data: rows.map(r => r[1]), itemStyle: { color: "#2a9d8f", borderRadius: [0, 3, 3, 0] } }],
   });
 }
@@ -1000,7 +1004,7 @@ function renderMIDAPanel(el) {
   mkChart("ch-mida", {
     tooltip: { ...TIP, confine: true, formatter: pts => `<b>${pts[0].axisValue}</b><br/>` +
       pts.sort((a,b) => (b.value??0)-(a.value??0)).slice(0, 8).map(p => `${p.marker}${p.seriesName}: RM ${p.value != null ? fmtNum(p.value) : "–"} mn`).join("<br/>") },
-    legend: { type: "scroll", textStyle: { color: "#8b97ad", fontSize: 9 }, top: 0 },
+    legend: { type: "scroll", textStyle: { color: "#8c87b0", fontSize: 9 }, top: 0 },
     grid: { left: 46, right: 14, top: 44, bottom: 24 },
     xAxis: AXIS({ type: "category", data: years }),
     yAxis: AXIS({ type: "value", name: "RM mn" }),
@@ -1022,7 +1026,7 @@ function renderMHPIPanel(el) {
     <div class="note-box">House prices are the lens that carries the <b>magnitude</b> in this study: capitalisation of access into property values, building to ≈ +10% (robust across estimators). NTL carries the <b>geography</b>.</div>
     <table class="mhpi-regions">${show.slice(0, 10).map(([k, r]) =>
       `<tr><td>${k.split("|")[1]}</td><td>${k.split("|")[0]}</td><td>${r.project !== "none" ? r.project : ""}</td><td>${r.operational ? "op. " + r.operational : ""}</td></tr>`).join("")}</table>`;
-  const palette = ["#38bdf8","#fbbf24","#34d399","#e879f9","#f87171","#a3e635","#fb923c","#818cf8","#2dd4bf","#f472b6"];
+  const palette = ["#53e8ff","#ffd23f","#34d399","#ff5fa8","#f87171","#a3e635","#ff8a3d","#818cf8","#2dd4bf","#f472b6"];
   const series = show.slice(0, 10).map(([k, r], i) => ({
     name: k.split("|")[1], type: "line", data: r.mhpi, showSymbol: false,
     lineStyle: { width: 1.8, color: palette[i % palette.length] }, itemStyle: { color: palette[i % palette.length] },
@@ -1031,7 +1035,7 @@ function renderMHPIPanel(el) {
   }));
   mkChart("ch-mhpi", {
     tooltip: { ...TIP, confine: true },
-    legend: { type: "scroll", textStyle: { color: "#8b97ad", fontSize: 9 }, top: 0 },
+    legend: { type: "scroll", textStyle: { color: "#8c87b0", fontSize: 9 }, top: 0 },
     grid: { left: 40, right: 14, top: 44, bottom: 24 },
     xAxis: AXIS({ type: "category", data: years }),
     yAxis: AXIS({ type: "value", name: "MHPI", scale: true }),
@@ -1063,7 +1067,7 @@ function renderResults(el) {
         <h3>${head[k][0]} <span class="vchip ${head[k][1]}">${head[k][2]}</span></h3>
         ${rows.map(r => `<div class="row">
           <span class="k">${r.estimator}${r.unit_n ? ` <span style="opacity:.55">· ${r.unit_n}</span>` : ""}</span>
-          <span class="v">${fmtEst(r)} <span style="color:#8b97ad;font-weight:400">${fmtP(r.p_value)}</span></span>
+          <span class="v">${fmtEst(r)} <span style="color:#8c87b0;font-weight:400">${fmtP(r.p_value)}</span></span>
         </div>`).join("")}
       </div>`).join("")}
     <div class="panel-h" style="margin-top:4px">Which way does naïve TWFE lie?</div>
@@ -1095,7 +1099,7 @@ function renderConstruction(el) {
     <div class="note-box"><b>The construction signal:</b> low-baseline corridors under construction are flat-to-declining (Pan Borneo Sabah most visibly) — corridors through dark terrain do not light up by anticipation. The paper's readiness argument: complementary investment matters before rail arrives.</div>`;
   const byC = {};
   for (const r of results.construction) (byC[r.corridor] = byC[r.corridor] || { status: r.status, pts: [] }).pts.push([r.year, r.ntl_index_2013_eq_100]);
-  const colors = { ECRL: "#fb923c", PanBorneoSabah: "#f87171", PanBorneoSarawak: "#e879f9" };
+  const colors = { ECRL: "#ff8a3d", PanBorneoSabah: "#f87171", PanBorneoSarawak: "#ff5fa8" };
   const series = Object.entries(byC).map(([c, o]) => ({
     name: fname(c) + (o.status && /complete/i.test(o.status) ? " (completed ref.)" : ""),
     type: "line", data: o.pts.sort((a, b) => a[0] - b[0]).map(p => p[1]), showSymbol: false,
@@ -1104,7 +1108,7 @@ function renderConstruction(el) {
   }));
   const years = [...new Set(results.construction.map(r => r.year))].sort();
   mkChart("ch-cons", {
-    tooltip: TIP, legend: { textStyle: { color: "#8b97ad", fontSize: 9.5 }, top: 0 },
+    tooltip: TIP, legend: { textStyle: { color: "#8c87b0", fontSize: 9.5 }, top: 0 },
     grid: { left: 40, right: 14, top: 46, bottom: 24 },
     xAxis: AXIS({ type: "category", data: years }),
     yAxis: AXIS({ type: "value", name: "index (2013=100)", scale: true }),
@@ -1132,7 +1136,7 @@ function drawThreeLens(proj) {
   const measures = [...new Set(tl.map(r => r.measure))];
   const wrap = document.getElementById("tl-charts");
   wrap.innerHTML = measures.map((m, i) => `<div class="muted-s" style="margin:2px 0 1px">${m}</div><div id="tlc${i}" class="chart short"></div>`).join("");
-  const colors = ["#fbbf24", "#38bdf8", "#34d399"];
+  const colors = ["#ffd23f", "#53e8ff", "#34d399"];
   measures.forEach((m, i) => {
     const rows = tl.filter(r => r.measure === m).sort((a, b) => a.year - b.year);
     const open = rows.find(r => r.opening != null && r.opening !== 0);
@@ -1146,7 +1150,7 @@ function drawThreeLens(proj) {
         lineStyle: { width: 2, color: colors[i % 3] }, itemStyle: { color: colors[i % 3] },
         areaStyle: { color: colors[i % 3] + "14" },
         markLine: openYear && years.includes(openYear) ? { symbol: "none", label: { show: false },
-          lineStyle: { color: "#fbbf24", type: "dashed" }, data: [{ xAxis: years.indexOf(openYear) }] } : undefined }],
+          lineStyle: { color: "#ffd23f", type: "dashed" }, data: [{ xAxis: years.indexOf(openYear) }] } : undefined }],
     });
   });
 }

@@ -6,16 +6,16 @@
 <title>Space Jam: Seeing Megaprojects From Space</title>
 <meta name="description" content="Interactive explorer for Malaysia's transport-corridor impact study: nighttime lights (NASA Black Marble), house prices (NAPIC MHPI), district GDP (OpenDOSM) and approved investment (MIDA/CEIC)."/>
 <link rel="stylesheet" href="lib/maplibre-gl.css"/>
-<link rel="stylesheet" href="style.css?v=13"/>
+<link rel="stylesheet" href="style.css?v=14"/>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🛰️</text></svg>"/>
 </head>
 <body>
-<div id="loader"><img class="ds" src="img/death_star.png" alt=""/><div class="lt" id="loadertext">Loading satellite panel…</div></div>
+<div id="loader"><img class="ds" src="img/death_star.png" alt=""/><div class="lt" id="loadertext">INSERT COIN · LOADING SATELLITE PANEL</div></div>
 
 <div id="app">
   <header>
     <div class="brand">
-      <h1>Space Jam: Seeing Megaprojects From Space</h1>
+      <h1><span class="star s1">★</span> Space Jam: Seeing Megaprojects From Space <span class="star s2">★</span></h1>
       <div class="sub">Malaysia transport corridors · 2012–2024 · 1-km nightlights, prices, GDP &amp; investment</div>
     </div>
     <img id="deathstar" src="img/death_star.png" alt="" title="That's no moon."/>
@@ -29,6 +29,7 @@
         <button data-layer="gdp" title="OpenDOSM district GDP (real, supply side), annual 2015–2020">🏭 District GDP</button>
         <button data-layer="mida" title="MIDA approved capital investment by state (CEIC), annual">💰 Investment</button>
         <button data-layer="mhpi" title="NAPIC house price index, 27 regions, annual">🏠 House prices</button>
+        <span id="credit">CREDIT 49/49 QTRS</span>
       </div>
     </div>
     <div class="hgroup" id="ntlopts">
@@ -84,6 +85,6 @@
 <script src="lib/maplibre-gl.js"></script>
 <script src="lib/deck.gl.min.js"></script>
 <script src="lib/echarts.min.js"></script>
-<script src="app.js?v=13"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>
