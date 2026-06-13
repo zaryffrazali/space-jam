@@ -367,8 +367,11 @@ function buildLayers() {
   if (state.layer === "ntl") {
     const arr = quarterCache.get(meta.tid_of[meta.quarters[state.t]]);
     const trig = { getFillColor: [state.t, state.corridor, state.dimOthers, state.colorMode] };
-    // square pixel cells when zoomed in; scatter at country view (186k GridCells are heavy far out)
-    if (arr && (map ? map.getZoom() : 9) >= 7) {
+    // Square pixel cells only when PAUSED + desktop + zoomed in. During playback (incl. the
+    // intro autoplay) and on mobile, use the scatter renderer — it colours reliably and is
+    // light enough to animate smoothly. (GridCell tops can render unlit mid-animation.)
+    const squares = arr && !MOBILE() && !playTimer && (map ? map.getZoom() : 9) >= 7;
+    if (squares) {
       layers.push(new deck.GridCellLayer({
         id: "ntl-cells", pickable: true,
         data: { length: meta.n_cells, attributes: {
@@ -612,7 +615,7 @@ function setCorridor(p) {
 
 function togglePlay() {
   const btn = document.getElementById("playbtn");
-  if (playTimer) { clearInterval(playTimer); playTimer = null; btn.textContent = "▶"; return; }
+  if (playTimer) { clearInterval(playTimer); playTimer = null; btn.textContent = "▶"; refreshMapOnly(); return; }  // settle into crisp squares
   btn.textContent = "❚❚";
   const sl0 = document.getElementById("timeslider");
   if (+sl0.value >= +sl0.max) { sl0.value = 0; if (state.layer === "ntl") state.t = 0; }
@@ -632,7 +635,7 @@ function togglePlay() {
     else if (state.layer === "mida") state.midaYearIdx = v;
     else if (state.layer === "mhpi") state.mhpiYearIdx = v;
     refreshMapOnly(); updateTimeLabel();
-  }, 200);
+  }, MOBILE() ? 300 : 200);
 }
 
 /* Story flags for the intro autoplay — locations & radiance figures computed from the

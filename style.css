@@ -222,11 +222,11 @@ table.mhpi-regions td:first-child{color:var(--text)}
    ROUND 2 ADDITIONS
    ============================================================ */
 /* marquee strip — sits ABOVE <header>; see HANDOFF2.md §2 for markup */
-#marquee{display:flex;align-items:center;justify-content:center;gap:26px;padding:13px 18px 11px;background:linear-gradient(180deg,#221a44,#0e0b1d);border-bottom:3px solid var(--accent);box-shadow:0 0 30px #ffd23f26;position:relative;z-index:31}
-#marquee h1{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:3px;color:var(--accent);text-shadow:0 0 14px #ffd23fb3,3px 3px 0 #000;text-transform:uppercase;white-space:nowrap}
-#marquee .star{font-family:var(--display);font-size:13px;color:var(--magenta)}
+#marquee{display:flex;align-items:center;gap:18px;padding:13px 18px 11px;background:linear-gradient(180deg,#221a44,#0e0b1d);border-bottom:3px solid var(--accent);box-shadow:0 0 30px #ffd23f26;position:relative;z-index:31}
+#marquee h1{font-family:var(--display);font-size:20px;font-weight:700;letter-spacing:2.5px;color:var(--accent);text-shadow:0 0 14px #ffd23fb3,3px 3px 0 #000;text-transform:uppercase;white-space:nowrap}
+#marquee .star{font-family:var(--display);font-size:13px;color:var(--magenta);flex:none}
 #marquee .star.c{color:var(--accent2)}
-#marquee .msub{position:absolute;right:18px;font-size:9.5px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;max-width:340px;text-align:right}
+#marquee .msub{margin-left:auto;font-size:9.5px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;max-width:300px;text-align:right;line-height:1.5;flex:none}
 @media (prefers-reduced-motion:no-preference){
   #marquee .star{animation:mqblink 1s steps(1) infinite}
   #marquee .star.c{animation-delay:.5s}
@@ -259,18 +259,19 @@ header{border-bottom:2px solid var(--border);box-shadow:none}
   #marquee{padding:9px 10px 8px;gap:12px}
   #marquee h1{font-size:13px;white-space:normal;text-align:center;line-height:1.4}
   #marquee .msub{display:none}
-  header{position:relative;gap:8px;padding:8px 12px 10px}
+  header{position:relative;gap:8px;padding:8px 12px 10px;align-items:center}
   .brand{padding-right:64px}
   .brand h1{font-size:13px;white-space:normal;line-height:1.35}
   .brand .sub{white-space:normal;font-size:9px}
-  #deathstar{position:absolute;top:6px;right:8px;height:48px;margin:0;z-index:0}
-  #controlbox{flex-basis:100%;width:100%;min-width:0;max-width:100%;padding:8px 10px;gap:7px}
+  /* Death Star sits inline, left of the corridor dropdown */
+  #deathstar{position:static;height:52px;margin:0;flex:none;order:0;align-self:center}
+  #controlbox{flex:1;min-width:0;max-width:100%;padding:8px 10px;gap:7px;order:1}
   #corridorwrap{min-width:0}
   #corridorsel{font-size:13px;padding:7px 30px 7px 10px;max-width:100%;min-width:0}
   #layerseg{max-width:100%;min-width:0;overflow-x:auto;scrollbar-width:none}
   #layerseg::-webkit-scrollbar{display:none}
   #layerseg button{font-size:11px;padding:8px 11px}
-  #ntlopts,#gdpopts{flex-basis:100%;justify-content:flex-start}
+  #ntlopts,#gdpopts{flex-basis:100%;justify-content:flex-start;order:2}
   #mapwrap{margin:8px;border-width:6px;border-radius:18px}
   #maphint{display:none}
   #corridorcard{display:none}
