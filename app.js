@@ -638,12 +638,12 @@ function togglePlay() {
    panel itself (3-km windows, 2012 avg vs 2023/24 avg); local context is public record. */
 const STORY = {
   DASH: [
-    { t: 18, lon: 101.51, lat: 3.155, ang: -133, title: "Elmina / Denai Alam", stat: "≈21 → ≈36 nW · ×1.7 brighter",
-      text: "Oil-palm edge turning township: Sime Darby's <b>City of Elmina</b> build-out — wave after wave of new housing precincts, a 300-acre central park, and the <b>Elmina Lakeside Mall</b> (2023). The fastest-brightening spot on this corridor." },
-    { t: 30, lon: 101.565, lat: 3.175, ang: -47, title: "Kwasa Damansara / Sungai Buloh", stat: "≈29 → ≈34 nW since 2012",
-      text: "EPF's new township rising on former rubber-research land. <b>MRT 1's western terminus</b> opened here Dec 2016, joined by the Putrajaya Line in 2022 — a twin-line gateway pulling homes and shops around the depot." },
-    { t: 41, lon: 101.47, lat: 3.10, ang: 47, title: "Puncak Perdana / Setia Alam", stat: "+12 nW since 2012",
-      text: "DASH's western gateway: rapid U10/Setia Alam residential build-out anchored by <b>Setia City Mall</b> and its convention centre. Contrast: mature Kota Damansara to the east stays <b>flat</b> — new light tracks new development, not old money." },
+    { t: 18, lon: 101.51, lat: 3.155, ang: -133, title: "Elmina / Denai Alam", stat: "≈21 → ≈36 nW · ×1.7",
+      text: "Fastest-brightening spot on the corridor — Sime Darby's <b>City of Elmina</b> township." },
+    { t: 30, lon: 101.565, lat: 3.175, ang: -47, title: "Kwasa Damansara / Sungai Buloh", stat: "≈29 → ≈34 nW",
+      text: "<b>EPF</b> township on the <b>MRT 1 + Putrajaya Line</b> terminus." },
+    { t: 41, lon: 101.47, lat: 3.10, ang: 47, title: "Puncak Perdana / Setia Alam", stat: "+12 nW",
+      text: "Setia Alam build-out anchored by <b>Setia City Mall</b>." },
   ],
 };
 const liveFlags = [];   // {el, anchor, key, ang, dist, pos:{x,y} card top-left rel. dot}
