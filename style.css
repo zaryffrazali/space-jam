@@ -102,10 +102,10 @@ select{background:var(--panel2);color:var(--text);border:2px solid var(--border)
 .sflag p b{color:#fff}
 
 /* corridor overview card */
-#corridorcard{background:var(--panel);border:2px solid var(--border);border-radius:0;padding:10px 12px;backdrop-filter:blur(6px);max-width:250px;margin-top:2px;box-shadow:var(--hard-s)}
+#corridorcard{position:absolute;top:80px;right:14px;z-index:10;background:var(--panel);border:2px solid var(--border);border-radius:0;padding:10px 12px;backdrop-filter:blur(6px);max-width:250px;box-shadow:var(--hard-s)}
 #corridorcard:empty{display:none}
 #corridorcard.hidden{display:none}
-#corridorcard.pop{animation:sfopen .5s cubic-bezier(.2,1.35,.35,1) both;transform-origin:0% 0%}
+#corridorcard.pop{animation:sfopen .5s cubic-bezier(.2,1.35,.35,1) both;transform-origin:100% 0%}
 #corridorcard h4{font-family:var(--display);font-size:10px;color:var(--accent);margin-bottom:3px;text-transform:uppercase}
 #corridorcard .cc-sub{font-size:9.5px;color:var(--muted);margin-bottom:7px}
 #corridorcard .cc-row{display:flex;justify-content:space-between;font-size:10.5px;padding:2.5px 0;border-bottom:1px dashed #251f44}
