@@ -1,24 +1,19 @@
-/* Three Lenses, One Corridor — interactive explorer
-   Data: NASA Black Marble NTL (1-km, quarterly), OpenDOSM district GDP,
-   NAPIC MHPI, MIDA/CEIC approved investment. Static site, no backend. */
+/* Space Jam — nighttime-lights explorer for Malaysia's transport corridors
+   Data: NASA Black Marble NTL (1-km, quarterly). Static site, no backend. */
 "use strict";
 
 const DATA = "data/";
-const DOSM_DISTRICTS = "https://raw.githubusercontent.com/dosm-malaysia/data-open/main/datasets/geodata/administrative_2_district.geojson";
-const DOSM_STATES    = "https://raw.githubusercontent.com/dosm-malaysia/data-open/main/datasets/geodata/administrative_1_state.geojson";
 
 const state = {
   layer: "ntl", corridor: "DASH", t: 48,        // t = quarter index for NTL
-  gdpYearIdx: 0, midaYearIdx: 0, mhpiYearIdx: 0, gdpSector: "p0",
   unit: "ntl",                                   // 'ntl' | 'log_sa'
   colorMode: "level",                            // 'level' | 'diff'
   showStations: true, showBuffers: false, dimOthers: true,
   tab: "explore", drill: null,                   // drill = {idx, lon, lat, series}
 };
 
-let meta, positions, pcode, distq, bcode, urb, tsNTL, results, stationsData,
-    routesGeo, buffersGeo, gdpData, mhpiData, midaData;
-let districtGeo = null, stateGeo = null, districtGeoFailed = false, stateGeoFailed = false;
+let meta, positions, pcode, distq, bcode, urb, tsNTL, stationsData,
+    routesGeo, buffersGeo;
 const quarterCache = new Map();   // tid -> Uint16Array
 let map, overlay, playTimer = null;
 let charts = {};                  // echarts instances by dom id
@@ -49,35 +44,6 @@ const openIdxOf = p => OPENQ[p] ? meta.quarters.indexOf(OPENQ[p]) : -1;
 const COMPLETED_BY_DATA_END = ["SenaiDesaru","Penang2ndBridge","ETS","LRT_KJ_Ext","LRT_Ampang_Ext",
   "MRT1_SBK","GemasJB","MRT2_SSP","DUKE2","SUKE","DASH","SPE","DUKE3","WCE"];
 const UC_BY_DATA_END = ["ECRL","PanBorneoSabah","PanBorneoSarawak","EKVE","LRT3","RTS_Link"];
-
-/* NAPIC MHPI regions → administrative districts (approximate; only non-trivial
-   mappings listed — all other regions share their district's exact name). */
-const MHPI_REGION_DISTRICTS = {
-  "Kota Tinggi/ Pontian": ["Kota Tinggi","Pontian"],
-  "Tampin & Others": ["Tampin","Jempol","Kuala Pilah","Rembau","Jelebu"],
-  "Jerantut-Lipis-Raub": ["Jerantut","Lipis","Raub"],
-  "Kinta/ Ipoh": ["Kinta"],
-  "Larut Matang": ["Larut Dan Matang"],
-  "Pulau Pinang (Island)": ["Timur Laut","Barat Daya"],
-  "Seberang Perai": ["Seberang Perai Utara","Seberang Perai Tengah","Seberang Perai Selatan"],
-  "Kota Kinabalu-Penampang": ["Kota Kinabalu","Penampang"],
-  "Hulu Langat": ["Ulu Langat"],
-  "Kuala Lumpur Central": ["Kuala Lumpur"],
-  "Kuala Lumpur North": ["Kuala Lumpur"],
-  "Kuala Lumpur South": ["Kuala Lumpur"],
-};
-const normDistrict = s => s.toLowerCase().replace(/^w\.?p\.?\s*/,"").replace(/[^a-z]/g,"");
-let mhpiDistrictMap = null;   // normalized district -> [region keys]
-function buildMhpiDistrictMap() {
-  if (mhpiDistrictMap) return mhpiDistrictMap;
-  mhpiDistrictMap = {};
-  for (const key of Object.keys(mhpiData.regions)) {
-    const reg = key.split("|")[1];
-    const dists = MHPI_REGION_DISTRICTS[reg] || [reg];
-    for (const d of dists) (mhpiDistrictMap[normDistrict(d)] = mhpiDistrictMap[normDistrict(d)] || []).push(key);
-  }
-  return mhpiDistrictMap;
-}
 
 /* ============================= boot ============================= */
 async function boot() {
@@ -117,9 +83,8 @@ async function boot() {
     positions[2 * i + 1] = s + qlat[i] / 65535 * (no - s);
   }
 
-  [tsNTL, results, stationsData, routesGeo, buffersGeo, gdpData, mhpiData, midaData] =
-    await Promise.all(["ts_ntl.json","results.json","stations.json","routes.geojson",
-                       "buffers.geojson","gdp.json","mhpi.json","mida.json"]
+  [tsNTL, stationsData, routesGeo, buffersGeo] =
+    await Promise.all(["ts_ntl.json","stations.json","routes.geojson","buffers.geojson"]
       .map(f => fetch(DATA + f).then(r => r.json())));
 
   for (const ft of buffersGeo.features) {
@@ -134,8 +99,6 @@ async function boot() {
   }
 
   state.t = meta.quarters.length - 1;
-  state.mhpiYearIdx = mhpiData.years.length - 1;
-  state.midaYearIdx = midaData.years.length - 1;
   parseHash();
   // intro plays on the default view (incl. reloads where the hash still points at it);
   // a hash pointing elsewhere = a shared link, so land there directly instead
@@ -152,8 +115,6 @@ async function boot() {
   await new Promise(r => setTimeout(r, wait));
   clearInterval(window.__loaderCycler);
   document.getElementById("loader").classList.add("hide");
-  // background fetch of remote boundaries (non-blocking)
-  fetchBoundaries();
   if (intro) introSequence();
 }
 
@@ -186,14 +147,6 @@ function geoBounds(geom) {
   const walk = c => { if (typeof c[0] === "number") { if (c[0] < w) w = c[0]; if (c[0] > e) e = c[0]; if (c[1] < s) s = c[1]; if (c[1] > n) n = c[1]; } else c.forEach(walk); };
   walk(geom.coordinates);
   return [[w, s], [e, n]];
-}
-
-async function fetchBoundaries() {
-  try { districtGeo = await (await fetch(DOSM_DISTRICTS)).json(); }
-  catch (err) { districtGeoFailed = true; }
-  try { stateGeo = await (await fetch(DOSM_STATES)).json(); }
-  catch (err) { stateGeoFailed = true; }
-  if (state.layer === "gdp" || state.layer === "mida") refreshAll();
 }
 
 /* ====================== colour lookup tables ===================== */
@@ -296,82 +249,6 @@ function buildLayers() {
   const layers = [];
   const sel = state.corridor;
 
-  if (state.layer === "gdp" && districtGeo) {
-    const year = gdpData.years[state.gdpYearIdx];
-    const vals = {};
-    const sorted = [];
-    for (const [k, sec] of Object.entries(gdpData.data)) {
-      const v = sec[state.gdpSector] ? sec[state.gdpSector][year] : undefined;
-      if (v != null) { vals[normKey(k)] = v; sorted.push(v); }
-    }
-    sorted.sort((a, b) => a - b);
-    // quantile rank → wide green ramp (dark forest → emerald → lime) for visible contrast
-    const rankT = v => {
-      let lo = 0, hi = sorted.length - 1;
-      while (lo < hi) { const m = (lo + hi) >> 1; if (sorted[m] < v) lo = m + 1; else hi = m; }
-      return sorted.length > 1 ? lo / (sorted.length - 1) : 0;
-    };
-    const ramp = t => t < 0.5
-      ? [Math.round(5 + (16 - 5) * t * 2), Math.round(48 + (165 - 48) * t * 2), Math.round(34 + (108 - 34) * t * 2)]
-      : [Math.round(16 + (190 - 16) * (t - 0.5) * 2), Math.round(165 + (242 - 165) * (t - 0.5) * 2), Math.round(108 + (90 - 108) * (t - 0.5) * 2)];
-    layers.push(new deck.GeoJsonLayer({
-      id: "gdp-choro", data: districtGeo, pickable: true, stroked: true, filled: true,
-      getLineColor: [13, 20, 36, 200], lineWidthMinPixels: 0.6,
-      getFillColor: f => {
-        const v = vals[normKey(f.properties.state + "|" + f.properties.district)];
-        if (v == null) return [40, 50, 70, 60];
-        return [...ramp(rankT(v)), 215];
-      },
-      updateTriggers: { getFillColor: [year, state.gdpSector] },
-    }));
-  }
-
-  if (state.layer === "mhpi" && districtGeo) {
-    const yi = state.mhpiYearIdx;
-    const dmap = buildMhpiDistrictMap();
-    const cellVals = [];
-    const valFor = nd => {
-      const regs = dmap[nd]; if (!regs) return null;
-      const vs = regs.map(k => mhpiData.regions[k].mhpi[yi]).filter(v => v != null);
-      return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
-    };
-    for (const nd of Object.keys(dmap)) { const v = valFor(nd); if (v != null) cellVals.push(v); }
-    const vmin = Math.min(...cellVals), vmax = Math.max(...cellVals);
-    layers.push(new deck.GeoJsonLayer({
-      id: "mhpi-choro", data: districtGeo, pickable: true, stroked: true, filled: true,
-      getLineColor: [13, 20, 36, 200], lineWidthMinPixels: 0.6,
-      getFillColor: f => {
-        const v = valFor(normDistrict(f.properties.district));
-        if (v == null) return [40, 50, 70, 50];
-        const t = vmax > vmin ? (v - vmin) / (vmax - vmin) : 0.5;
-        return [Math.round(70 + 174 * t), Math.round(28 + 86 * t), Math.round(112 + 70 * t), 215];
-      },
-      updateTriggers: { getFillColor: [yi] },
-    }));
-  }
-
-  if (state.layer === "mida" && stateGeo) {
-    const year = midaData.years[state.midaYearIdx];
-    const yi = midaData.years.indexOf(year);
-    const vals = {}; let vmax = 0;
-    for (const [stn, series] of Object.entries(midaData.states)) {
-      const v = series[yi];
-      if (v != null) { vals[normState(stn)] = v; if (v > vmax) vmax = v; }
-    }
-    const lmax = Math.log1p(vmax || 1);
-    layers.push(new deck.GeoJsonLayer({
-      id: "mida-choro", data: stateGeo, pickable: true, stroked: true, filled: true,
-      getLineColor: [13, 20, 36, 220], lineWidthMinPixels: 1,
-      getFillColor: f => {
-        const v = vals[normState(f.properties.state)];
-        if (v == null) return [40, 50, 70, 60];
-        const t = Math.log1p(v) / lmax;
-        return [Math.round(120+131*t), Math.round(60+131*t), Math.round(15+21*t), 205];
-      },
-      updateTriggers: { getFillColor: [year] },
-    }));
-  }
-
   if (state.showBuffers && state.layer === "ntl") {
     const feats = sel === "all" ? buffersGeo.features : buffersGeo.features.filter(f => f.properties.project === sel);
     layers.push(new deck.GeoJsonLayer({
@@ -428,9 +305,6 @@ function buildLayers() {
   return layers;
 }
 
-function normKey(k) { return k.toLowerCase().replace(/[^a-z0-9|]+/g, ""); }
-function normState(s) { return s.toLowerCase().replace(/^w\.?p\.?\s*/i, "").replace(/[^a-z]+/g, ""); }
-
 function getTooltip({ layer, object, index }) {
   if (!layer) return null;
   if (layer.id === "ntl-cells" && index >= 0) {
@@ -459,30 +333,6 @@ function getTooltip({ layer, object, index }) {
     const ol = OPEN_LABEL(p.project);
     const o = ol ? `opened ${ol}` : (p.status === "under_construction" ? "under construction" : "opened in stages");
     return { html: `<div class="tt-pad"><b>${fname(p.project)}</b><br/>${p.mode} · ${o}<br/><i style="color:#8c87b0">double-click to zoom</i></div>` };
-  }
-  if (layer.id === "gdp-choro" && object) {
-    const pr = object.properties, year = gdpData.years[state.gdpYearIdx];
-    const key = Object.keys(gdpData.data).find(k => normKey(k) === normKey(pr.state + "|" + pr.district));
-    const v = key ? gdpData.data[key][state.gdpSector]?.[year] : null;
-    return { html: `<b>${pr.district}</b>, ${pr.state}<br/>${gdpData.sectors[state.gdpSector]} ${year}:
-      <b>${v != null ? "RM " + fmtNum(v) + " mn" : "n/a"}</b><br/><i style="color:#8c87b0">real 2015 prices · OpenDOSM</i>` };
-  }
-  if (layer.id === "mhpi-choro" && object) {
-    const pr = object.properties, year = mhpiData.years[state.mhpiYearIdx];
-    const regs = buildMhpiDistrictMap()[normDistrict(pr.district)];
-    if (!regs) return { html: `<div class="tt-pad"><b>${pr.district}</b>, ${pr.state}<br/>not covered by a NAPIC MHPI region</div>` };
-    const rows = regs.map(k => { const v = mhpiData.regions[k].mhpi[state.mhpiYearIdx];
-      return `${k.split("|")[1]}: <b>${v != null ? v : "n/a"}</b>`; }).join("<br/>");
-    return { html: `<div class="tt-pad"><b>${pr.district}</b>, ${pr.state} · ${year}<br/>${rows}
-      <br/><i style="color:#8c87b0">MHPI, 2010=100 · NAPIC region(s), approximate boundaries</i></div>` };
-  }
-  if (layer.id === "mida-choro" && object) {
-    const pr = object.properties, year = midaData.years[state.midaYearIdx];
-    const key = Object.keys(midaData.states).find(k => normState(k) === normState(pr.state));
-    const v = key ? midaData.states[key][state.midaYearIdx] : null;
-    const asg = key ? (midaData.assignments[key] || "—") : "—";
-    return { html: `<b>${pr.state}</b><br/>Approved investment ${year}: <b>${v != null ? "RM " + fmtNum(v) + " mn" : "n/a"}</b>
-      <br/>corridor assignment: ${asg}<br/><i style="color:#8c87b0">MIDA via CEIC · descriptive only</i>` };
   }
   return null;
 }
@@ -599,17 +449,6 @@ function initHeader() {
   sel.onchange = () => { setCorridor(sel.value); zoomToCorridor(); autoplayAfterZoom(); };
   buildCorridorDropdown(sel);
 
-  // layer segmented control
-  document.querySelectorAll("#layerseg button").forEach(b =>
-    b.onclick = () => { state.layer = b.dataset.layer; clearStoryFlags(); syncLayerUI(); refreshAll(); });
-
-  // sector select
-  const ss = document.getElementById("sectorsel");
-  // populated after gdpData loads in refresh (boot order safe: initHeader after data load)
-  ss.innerHTML = Object.entries(gdpData.sectors).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
-  ss.value = state.gdpSector;
-  ss.onchange = () => { state.gdpSector = ss.value; refreshMapOnly(); };
-
   // checkboxes
   const ck = (id, key) => { const el = document.getElementById(id); el.checked = state[key];
     el.onchange = () => { state[key] = el.checked; refreshMapOnly(); }; };
@@ -618,10 +457,7 @@ function initHeader() {
   // slider + play
   const sl = document.getElementById("timeslider");
   sl.oninput = async () => {
-    if (state.layer === "ntl") { state.t = +sl.value; await ensureQuarter(state.t); }
-    else if (state.layer === "gdp") state.gdpYearIdx = +sl.value;
-    else if (state.layer === "mida") state.midaYearIdx = +sl.value;
-    else if (state.layer === "mhpi") state.mhpiYearIdx = +sl.value;
+    state.t = +sl.value; await ensureQuarter(state.t);
     refreshMapOnly(); updateTimeLabel(); writeHash();
   };
   document.getElementById("playbtn").onclick = togglePlay;
@@ -663,30 +499,23 @@ function togglePlay() {
   if (playTimer) { clearTimeout(playTimer); playTimer = null; btn.textContent = "▶"; refreshMapOnly(); return; }  // settle into crisp squares
   btn.textContent = "❚❚";
   const sl0 = document.getElementById("timeslider");
-  if (+sl0.value >= +sl0.max) { sl0.value = 0; if (state.layer === "ntl") state.t = 0; }
+  if (+sl0.value >= +sl0.max) { sl0.value = 0; state.t = 0; }
   const step = MOBILE() ? 320 : 200;
-  // self-scheduling loop: each NTL frame WAITS for its quarter to load before drawing,
+  // self-scheduling loop: each frame WAITS for its quarter to load before drawing,
   // so the map never renders an unloaded (black) quarter; next tick is scheduled after.
   const tick = async () => {
     const sl = document.getElementById("timeslider");
     let v = +sl.value + 1;
     if (v > +sl.max) { togglePlay(); return; }
-    if (state.layer === "ntl") {
-      const arr = await ensureQuarter(v);     // block until this quarter is in cache
-      if (!playTimer) return;                  // paused while we awaited
-      sl.value = v; state.t = v;
-      for (let k = 1; k <= 5; k++) if (v + k <= +sl.max) ensureQuarter(v + k); // prefetch ahead
-      maybeOpeningFlag(v); maybeStoryFlag(v);
-    } else {
-      sl.value = v;
-      if (state.layer === "gdp") state.gdpYearIdx = v;
-      else if (state.layer === "mida") state.midaYearIdx = v;
-      else if (state.layer === "mhpi") state.mhpiYearIdx = v;
-    }
+    const arr = await ensureQuarter(v);     // block until this quarter is in cache
+    if (!playTimer) return;                  // paused while we awaited
+    sl.value = v; state.t = v;
+    for (let k = 1; k <= 5; k++) if (v + k <= +sl.max) ensureQuarter(v + k); // prefetch ahead
+    maybeOpeningFlag(v); maybeStoryFlag(v);
     refreshMapOnly(); updateTimeLabel();
     playTimer = setTimeout(tick, step);
   };
-  if (state.layer === "ntl") for (let k = 1; k <= 6; k++) if (state.t + k < meta.quarters.length) ensureQuarter(state.t + k);
+  for (let k = 1; k <= 6; k++) if (state.t + k < meta.quarters.length) ensureQuarter(state.t + k);
   playTimer = setTimeout(tick, step);
 }
 
@@ -787,10 +616,7 @@ function placeSliderFlag() {
   // .slider-flag is hidden by the CRT CSS; the blocky track's magenta notch marks the opening
   updateQBlocks();
 }
-function curTimeState() {   // {idx, max, openIdx} for the active layer
-  if (state.layer === "gdp")  return { idx: state.gdpYearIdx,  max: gdpData.years.length - 1,  openIdx: -1 };
-  if (state.layer === "mida") return { idx: state.midaYearIdx, max: midaData.years.length - 1, openIdx: -1 };
-  if (state.layer === "mhpi") return { idx: state.mhpiYearIdx, max: mhpiData.years.length - 1, openIdx: -1 };
+function curTimeState() {   // {idx, max, openIdx} for the NTL timeline
   return { idx: state.t, max: meta.quarters.length - 1,
            openIdx: state.corridor !== "all" ? openIdxOf(state.corridor) : -1 };
 }
@@ -815,23 +641,13 @@ function updateQBlocks() {
 }
 
 function syncLayerUI() {
-  document.querySelectorAll("#layerseg button").forEach(b => b.classList.toggle("active", b.dataset.layer === state.layer));
-  document.getElementById("ntlopts").style.display = state.layer === "ntl" ? "" : "none";
-  document.getElementById("gdpopts").style.display = state.layer === "gdp" ? "" : "none";
-  document.getElementById("midabadge").style.display = state.layer === "mida" ? "" : "none";
+  document.getElementById("ntlopts").style.display = "";
   const tb = document.getElementById("timebar"), sl = document.getElementById("timeslider"),
         tm = document.getElementById("timemode");
   if (playTimer) togglePlay();
-  if (state.layer === "ntl") { tb.style.display = ""; sl.max = meta.quarters.length - 1; sl.value = state.t; tm.textContent = "quarterly · 2012 Q1 – 2024 Q1"; }
-  else if (state.layer === "gdp") { tb.style.display = ""; sl.max = gdpData.years.length - 1; sl.value = state.gdpYearIdx; tm.textContent = "annual · " + gdpData.years[0] + "–" + gdpData.years[gdpData.years.length-1]; }
-  else if (state.layer === "mida") { tb.style.display = ""; sl.max = midaData.years.length - 1; sl.value = state.midaYearIdx; tm.textContent = "annual · " + midaData.years[0] + "–" + midaData.years[midaData.years.length-1]; }
-  else if (state.layer === "mhpi") { tb.style.display = ""; sl.max = mhpiData.years.length - 1; sl.value = state.mhpiYearIdx; tm.textContent = "annual · " + mhpiData.years[0] + "–" + mhpiData.years[mhpiData.years.length-1]; }
-  else tb.style.display = "none";
-  const titles = { ntl: "🛰️ NASA Black Marble nighttime radiance — 1-km cells",
-                   gdp: "🏭 District GDP, real (2015 prices) — OpenDOSM",
-                   mida: "💰 Approved capital investment by state — MIDA / CEIC",
-                   mhpi: "🏠 House price index (MHPI) — NAPIC, regions mapped to districts" };
-  document.getElementById("layertitle").textContent = titles[state.layer];
+  tb.style.display = ""; sl.max = meta.quarters.length - 1; sl.value = state.t;
+  tm.textContent = "quarterly · 2012 Q1 – 2024 Q1";
+  document.getElementById("layertitle").textContent = "🛰️ NASA Black Marble nighttime radiance — 1-km cells";
   updateTimeLabel();
   placeSliderFlag();
   renderCorridorCard();
@@ -840,15 +656,8 @@ function syncLayerUI() {
 
 function updateTimeLabel() {
   const cr = document.getElementById("credit");
-  if (cr) {
-    cr.style.display = state.layer === "ntl" ? "" : "none";
-    if (state.layer === "ntl") cr.textContent = `CREDIT ${state.t + 1}/${meta.quarters.length} QTRS`;
-  }
-  const el = document.getElementById("timelabel");
-  if (state.layer === "ntl") el.textContent = qlabel(state.t);
-  else if (state.layer === "gdp") el.textContent = gdpData.years[state.gdpYearIdx];
-  else if (state.layer === "mida") el.textContent = midaData.years[state.midaYearIdx];
-  else if (state.layer === "mhpi") el.textContent = mhpiData.years[state.mhpiYearIdx];
+  if (cr) { cr.style.display = ""; cr.textContent = `CREDIT ${state.t + 1}/${meta.quarters.length} QTRS`; }
+  document.getElementById("timelabel").textContent = qlabel(state.t);
   updateQBlocks();
 }
 
@@ -863,7 +672,6 @@ const CORRIDOR_BLURBS = {
 let cellCounts = null;
 function renderCorridorCard() {
   const el = document.getElementById("corridorcard");
-  if (state.layer !== "ntl") { el.innerHTML = ""; return; }
   const p = state.corridor;
   if (p === "all") {
     el.innerHTML = `<h4>All corridors</h4><div class="cc-sub">national overview</div>
@@ -904,37 +712,17 @@ function renderCorridorCard() {
 /* ============================= legend ============================ */
 function renderLegend() {
   const lg = document.getElementById("legend");
-  if (state.layer === "ntl") {
-    const grad = "linear-gradient(90deg,#0d0726 0 14%,#2b1166 14% 28%,#6b1d92 28% 42%,#c22f68 42% 56%,#ff6b35 56% 70%,#ffc53f 70% 84%,#fff3a3 84% 100%)";
-    lg.innerHTML = `<b style="color:#e7ecf5">Radiance (nW/cm²/sr)</b>
-      <div class="bar" style="background:${grad}"></div>
-      <div class="ticks"><span>0</span><span>1</span><span>5</span><span>20</span><span>75</span><span>150+</span></div>
-      <div class="swatches">
-        <div class="sw"><i style="background:#53e8ff"></i>completed corridor</div>
-        <div class="sw"><i style="background:#ff8a3d"></i>under construction</div>
-        <div class="sw"><i class="dot" style="border:2px solid #34d399"></i>station (intercity)</div>
-        <div class="sw"><i class="dot" style="border:2px solid #ff5fa8"></i>station (Klang Valley)</div>
-      </div>
-      <div class="note">Log-scaled levels. Shown as levels (nW), not %, because percentage changes off near-dark rural cells are misleading.</div>`;
-  } else if (state.layer === "gdp") {
-    lg.innerHTML = `<b style="color:#e7ecf5">District GDP (RM mn, real)</b>
-      <div class="bar" style="background:linear-gradient(90deg,#053022,#10a56c,#bef25a)"></div>
-      <div class="ticks"><span>lowest</span><span>quantile rank</span><span>highest</span></div>
-      <div class="note">OpenDOSM, supply side, 2015 prices, ${gdpData.years[0]}–${gdpData.years[gdpData.years.length-1]}. Colour = rank among districts that year, so contrasts stay visible. Descriptive — this study draws <b>no</b> NTL→GDP link.</div>
-      ${districtGeo ? "" : `<div class="note" style="color:#fca5a5">${districtGeoFailed ? "Could not fetch DOSM boundaries (offline?)." : "Fetching district boundaries…"}</div>`}`;
-  } else if (state.layer === "mida") {
-    lg.innerHTML = `<b style="color:#e7ecf5">Approved investment (RM mn)</b>
-      <div class="bar" style="background:linear-gradient(90deg,#78350f,#d97706,#ffd23f)"></div>
-      <div class="ticks"><span>low</span><span>high (log scale)</span></div>
-      <div class="note">MIDA approvals via CEIC. Lumpy and volatile; the corridor <b>effect is not identifiable</b> in this lens — levels only.</div>
-      ${stateGeo ? "" : `<div class="note" style="color:#fca5a5">${stateGeoFailed ? "Could not fetch DOSM boundaries (offline?)." : "Fetching state boundaries…"}</div>`}`;
-  } else {
-    lg.innerHTML = `<b style="color:#e7ecf5">House prices (NAPIC MHPI, 2010=100)</b>
-      <div class="bar" style="background:linear-gradient(90deg,#461c70,#a855f7,#f472b6)"></div>
-      <div class="ticks"><span>${"low"}</span><span>index level</span><span>high</span></div>
-      <div class="note"><b>Approximate boundaries:</b> NAPIC publishes MHPI by valuation region, not district. Regions are matched to districts by name (multi-district regions share one value; KL's three sub-areas are averaged over one polygon). Grey = no NAPIC coverage.</div>
-      ${districtGeo ? "" : `<div class="note" style="color:#fca5a5">${districtGeoFailed ? "Could not fetch DOSM boundaries (offline?)." : "Fetching district boundaries…"}</div>`}`;
-  }
+  const grad = "linear-gradient(90deg,#0d0726 0 14%,#2b1166 14% 28%,#6b1d92 28% 42%,#c22f68 42% 56%,#ff6b35 56% 70%,#ffc53f 70% 84%,#fff3a3 84% 100%)";
+  lg.innerHTML = `<b style="color:#e7ecf5">Radiance (nW/cm²/sr)</b>
+    <div class="bar" style="background:${grad}"></div>
+    <div class="ticks"><span>0</span><span>1</span><span>5</span><span>20</span><span>75</span><span>150+</span></div>
+    <div class="swatches">
+      <div class="sw"><i style="background:#53e8ff"></i>completed corridor</div>
+      <div class="sw"><i style="background:#ff8a3d"></i>under construction</div>
+      <div class="sw"><i class="dot" style="border:2px solid #34d399"></i>station (intercity)</div>
+      <div class="sw"><i class="dot" style="border:2px solid #ff5fa8"></i>station (Klang Valley)</div>
+    </div>
+    <div class="note">Log-scaled levels. Shown as levels (nW), not %, because percentage changes off near-dark rural cells are misleading.</div>`;
 }
 
 /* ====================== refresh orchestration ===================== */
@@ -949,9 +737,6 @@ function renderSide() {
   charts = {};
   if (state.tab === "explore") renderExplore(el);
   else if (state.tab === "guide") renderGuide(el);
-  else if (state.tab === "results") renderResults(el);
-  else if (state.tab === "construction") renderConstruction(el);
-  else if (state.tab === "threelens") renderThreeLens(el);
   else renderAbout(el);
 }
 
@@ -973,10 +758,6 @@ const TIP = { trigger: "axis", backgroundColor: "#110f1d", borderColor: "#2e2752
 
 /* ---- Explore tab ---- */
 function renderExplore(el) {
-  if (state.layer === "mhpi") { renderMHPIPanel(el); return; }
-  if (state.layer === "gdp") { renderGDPPanel(el); return; }
-  if (state.layer === "mida") { renderMIDAPanel(el); return; }
-
   const p = state.corridor;
   const isAll = p === "all";
   const opening = OPEN_LABEL(p);
@@ -996,7 +777,7 @@ function renderExplore(el) {
       </div>
     </div>
     <div id="ch-nearfar" class="chart tall"></div>
-    <div class="note-box"><b>How to read:</b> if the gap between near and far widens after the opening line, that is the raw pattern the DiD formalises. The causal estimates live in the <b>Results</b> tab — this chart alone is not an effect size.</div>`}
+    <div class="note-box"><b>How to read:</b> the cyan line is mean radiance of cells within 5 km of the route; the darker line is the 20–30 km outer ring. If the near line pulls away from the outer ring after the opening (dashed line), that is the corridor's nighttime-light footprint emerging. Descriptive only.</div>`}
     ${state.drill ? `<hr class="sep"/><div class="panel-h">Cell history <span class="badge desc">DESCRIPTIVE</span></div>
       <div class="panel-sub">Cell at ${state.drill.lon.toFixed(3)}, ${state.drill.lat.toFixed(3)} · ${fname(meta.projects[pcode[state.drill.idx]] || "—")} · ${(distq[state.drill.idx]/8).toFixed(1)} km from route</div>
       <div id="ch-drill" class="chart short"></div>` : `<hr class="sep"/><div class="muted-s">💡 Click any lit cell on the map to pull its full 2012–2024 quarterly radiance history.</div>`}`;
@@ -1078,273 +859,70 @@ function renderDrillChart() {
   });
 }
 
-/* ---- GDP / MIDA / MHPI explore panels ---- */
-function renderGDPPanel(el) {
-  const year = gdpData.years[state.gdpYearIdx];
-  el.innerHTML = `
-    <div class="panel-h">District GDP — ${gdpData.sectors[state.gdpSector]} <span class="badge desc">DESCRIPTIVE</span></div>
-    <div class="panel-sub">OpenDOSM, real (2015 prices), supply side, ${gdpData.years[0]}–${gdpData.years[gdpData.years.length-1]}. Hover districts on the map; use the slider for years.</div>
-    <div class="note-box"><b>Honesty rule:</b> this study deliberately does <b>not</b> estimate an NTL→GDP elasticity — a district-GDP test was cut as unreliable. This layer is context, not an outcome lens of the corridor design. Nightlights measure the <b>spatial footprint</b> of activity, not output value.</div>
-    <div class="panel-h" style="margin-top:8px">Top 12 districts · ${year}</div>
-    <div id="ch-gdp" class="chart tall"></div>`;
-  const rows = Object.entries(gdpData.data)
-    .map(([k, sec]) => [k.split("|")[1] + " (" + k.split("|")[0] + ")", sec[state.gdpSector]?.[year]])
-    .filter(r => r[1] != null).sort((a, b) => b[1] - a[1]).slice(0, 12).reverse();
-  mkChart("ch-gdp", {
-    tooltip: { ...TIP, trigger: "item", formatter: d => `${d.name}<br/>RM ${fmtNum(d.value)} mn` },
-    grid: { left: 4, right: 40, top: 6, bottom: 22, containLabel: true },
-    xAxis: AXIS({ type: "value", name: "RM mn" }),
-    yAxis: AXIS({ type: "category", data: rows.map(r => r[0]), axisLabel: { color: "#8c87b0", fontSize: 9 } }),
-    series: [{ type: "bar", data: rows.map(r => r[1]), itemStyle: { color: "#2a9d8f", borderRadius: [0, 3, 3, 0] } }],
-  });
-}
-
-function renderMIDAPanel(el) {
-  const sel = state.corridor;
-  el.innerHTML = `
-    <div class="panel-h">Approved investment by state <span class="badge warn">NOT IDENTIFIABLE</span></div>
-    <div class="panel-sub">MIDA approvals (CEIC), RM mn, annual ${midaData.years[0]}–${midaData.years[midaData.years.length-1]}. The sharpest methodological lesson of the study lives here.</div>
-    <div id="ch-mida" class="chart tall"></div>
-    <div class="note-box"><b>Why “not identifiable”:</b> naïve TWFE says +66% (p=0.003) — but pre-trends fail and Callaway–Sant'Anna is null (+15.5%, p=0.67). The estimator choice decides the answer, so the honest verdict is a <b>non-result</b>. This layer shows levels only.</div>`;
-  const years = midaData.years;
-  const series = Object.entries(midaData.states)
-    .filter(([s]) => s !== "Other")
-    .map(([s, v]) => ({ name: s, type: "line", data: v, showSymbol: false,
-      lineStyle: { width: 1.4 }, emphasis: { focus: "series" } }));
-  mkChart("ch-mida", {
-    tooltip: { ...TIP, confine: true, formatter: pts => `<b>${pts[0].axisValue}</b><br/>` +
-      pts.sort((a,b) => (b.value??0)-(a.value??0)).slice(0, 8).map(p => `${p.marker}${p.seriesName}: RM ${p.value != null ? fmtNum(p.value) : "–"} mn`).join("<br/>") },
-    legend: { type: "scroll", textStyle: { color: "#8c87b0", fontSize: 9 }, top: 0 },
-    grid: { left: 46, right: 14, top: 44, bottom: 24 },
-    xAxis: AXIS({ type: "category", data: years }),
-    yAxis: AXIS({ type: "value", name: "RM mn" }),
-    series,
-  });
-}
-
-function renderMHPIPanel(el) {
-  const years = mhpiData.years;
-  const regions = Object.entries(mhpiData.regions);
-  const sel = state.corridor;
-  const matches = regions.filter(([, r]) => r.project && r.project !== "none" &&
-    (sel === "all" || projectMatch(r.project, sel)));
-  const show = matches.length ? matches : regions.filter(([, r]) => r.treated).slice(0, 6);
-  el.innerHTML = `
-    <div class="panel-h">House prices — NAPIC MHPI <span class="badge desc">DESCRIPTIVE</span></div>
-    <div class="panel-sub">Index (2010=100), annual, 27 regions. ${sel === "all" ? "Showing all treated regions" : "Regions mapped to " + fname(sel)}${matches.length ? "" : " (none mapped — showing treated regions)"}. The causal MHPI estimate (~+10% build-up) is in <b>Results</b>.</div>
-    <div id="ch-mhpi" class="chart tall"></div>
-    <div class="note-box">House prices are the lens that carries the <b>magnitude</b> in this study: capitalisation of access into property values, building to ≈ +10% (robust across estimators). NTL carries the <b>geography</b>.</div>
-    <table class="mhpi-regions">${show.slice(0, 10).map(([k, r]) =>
-      `<tr><td>${k.split("|")[1]}</td><td>${k.split("|")[0]}</td><td>${r.project !== "none" ? r.project : ""}</td><td>${r.operational ? "op. " + r.operational : ""}</td></tr>`).join("")}</table>`;
-  const palette = ["#53e8ff","#ffd23f","#34d399","#ff5fa8","#f87171","#a3e635","#ff8a3d","#818cf8","#2dd4bf","#f472b6"];
-  const series = show.slice(0, 10).map(([k, r], i) => ({
-    name: k.split("|")[1], type: "line", data: r.mhpi, showSymbol: false,
-    lineStyle: { width: 1.8, color: palette[i % palette.length] }, itemStyle: { color: palette[i % palette.length] },
-    markLine: r.operational ? { symbol: "none", label: { show: false }, lineStyle: { color: palette[i % palette.length], type: "dotted", opacity: .5 },
-      data: [{ xAxis: years.indexOf(r.operational) }] } : undefined,
-  }));
-  mkChart("ch-mhpi", {
-    tooltip: { ...TIP, confine: true },
-    legend: { type: "scroll", textStyle: { color: "#8c87b0", fontSize: 9 }, top: 0 },
-    grid: { left: 40, right: 14, top: 44, bottom: 24 },
-    xAxis: AXIS({ type: "category", data: years }),
-    yAxis: AXIS({ type: "value", name: "MHPI", scale: true }),
-    series,
-  });
-}
-function projectMatch(mhpiProj, corridor) {
-  const a = String(mhpiProj).toLowerCase().replace(/[^a-z0-9]/g, "");
-  const b = corridor.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return a.includes(b) || b.includes(a);
-}
-
-/* ---- Results tab ---- */
-function renderResults(el) {
-  const m = results.matrix;
-  const groups = { NTL: [], MHPI: [], MIDA: [] };
-  for (const r of m) {
-    const key = r.outcome.toUpperCase().includes("NTL") ? "NTL" : r.outcome.toUpperCase().includes("MHPI") || r.outcome.toUpperCase().includes("HOUSE") ? "MHPI" : "MIDA";
-    groups[key].push(r);
-  }
-  const head = { NTL: ["🛰️ Nightlights (1-km cells)", "robust", "ROBUST (10% level)"],
-                 MHPI: ["🏠 House prices (MHPI)", "robust", "ROBUST (~+10%)"],
-                 MIDA: ["💰 Investment (MIDA)", "notid", "NOT IDENTIFIABLE"] };
-  el.innerHTML = `
-    <div class="panel-h">The 3×2 matrix <span class="badge causal">CAUSAL ESTIMATES</span></div>
-    <div class="panel-sub">Three outcome lenses × modern DiD estimators. Staggered openings, 2012–2024; controls are 20–30 km rings and not-yet-treated corridors. Numbers are final (see paper).</div>
-    ${Object.entries(groups).map(([k, rows]) => `
-      <div class="card">
-        <h3>${head[k][0]} <span class="vchip ${head[k][1]}">${head[k][2]}</span></h3>
-        ${rows.map(r => `<div class="row">
-          <span class="k">${r.estimator}${r.unit_n ? ` <span style="opacity:.55">· ${r.unit_n}</span>` : ""}</span>
-          <span class="v">${fmtEst(r)} <span style="color:#8c87b0;font-weight:400">${fmtP(r.p_value)}</span></span>
-        </div>`).join("")}
-      </div>`).join("")}
-    <div class="panel-h" style="margin-top:4px">Which way does naïve TWFE lie?</div>
-    <div class="card">${results.bias.map(b => `<div class="row">
-        <span class="k">${b.outcome}</span><span class="v" style="color:${/down/i.test(b.twfe_bias) ? "#7dd3fc" : /up/i.test(b.twfe_bias) ? "#fca5a5" : "#e7ecf5"}">${b.twfe_bias}</span>
-      </div>`).join("")}
-      <div class="muted-s" style="margin-top:7px">Same data, three different bias directions — the study's core methodological point: estimator choice is not a technicality.</div>
-    </div>
-    <div class="note-box"><b>Honest caveats:</b> NTL is significant at the <b>10%</b> level (C–S p=0.095 at the 49-station level; cell-level TWFE +0.92 nW p=0.002; imputation band +1.6–2.7 nW). At corridor-level clustering (4 clusters) it is underpowered (p≈0.27). The NTL effect <b>strengthens</b> when the Klang Valley is dropped (intercity-only +4.1%, p=0.043). MHPI builds gradually to ≈+10%. MIDA's TWFE +66% fails pre-trends — reported as a non-result.</div>`;
-}
-const fmtP = p => {
-  if (p == null || p === "") return "";
-  const n = parseFloat(p);
-  if (!isNaN(n) && n === 0) return "p<0.001";
-  return "p=" + p;
-};
-const fmtEst = r => {
-  if (r.estimate == null) return r.note || "—";
-  const sign = r.estimate > 0 ? "+" : "";
-  return `${sign}${r.estimate}${r.estimate_unit === "pct" || r.estimate_unit === "%" ? "%" : " " + (r.estimate_unit || "")}`;
-};
-
-/* ---- Construction tab ---- */
-function renderConstruction(el) {
-  el.innerHTML = `
-    <div class="panel-h">Construction tracker <span class="badge desc">DESCRIPTIVE</span></div>
-    <div class="panel-sub">Indexed corridor radiance (2013 = 100) for the three corridors still under construction, against a completed reference. Predictions, not estimates.</div>
-    <div id="ch-cons" class="chart tall"></div>
-    <div class="note-box"><b>The construction signal:</b> low-baseline corridors under construction are flat-to-declining (Pan Borneo Sabah most visibly) — corridors through dark terrain do not light up by anticipation. The paper's readiness argument: complementary investment matters before rail arrives.</div>`;
-  const byC = {};
-  for (const r of results.construction) (byC[r.corridor] = byC[r.corridor] || { status: r.status, pts: [] }).pts.push([r.year, r.ntl_index_2013_eq_100]);
-  const colors = { ECRL: "#ff8a3d", PanBorneoSabah: "#f87171", PanBorneoSarawak: "#ff5fa8" };
-  const series = Object.entries(byC).map(([c, o]) => ({
-    name: fname(c) + (o.status && /complete/i.test(o.status) ? " (completed ref.)" : ""),
-    type: "line", data: o.pts.sort((a, b) => a[0] - b[0]).map(p => p[1]), showSymbol: false,
-    lineStyle: { width: 2, color: colors[c] || "#34d399", type: /complete/i.test(o.status || "") ? "dashed" : "solid" },
-    itemStyle: { color: colors[c] || "#34d399" },
-  }));
-  const years = [...new Set(results.construction.map(r => r.year))].sort();
-  mkChart("ch-cons", {
-    tooltip: TIP, legend: { textStyle: { color: "#8c87b0", fontSize: 9.5 }, top: 0 },
-    grid: { left: 40, right: 14, top: 46, bottom: 24 },
-    xAxis: AXIS({ type: "category", data: years }),
-    yAxis: AXIS({ type: "value", name: "index (2013=100)", scale: true }),
-    series,
-  });
-}
-
-/* ---- Three lenses tab ---- */
-function renderThreeLens(el) {
-  const tl = results.three_lens_timeline;
-  const projs = [...new Set(tl.map(r => r.project))];
-  const cur = projs.includes(state.corridor) ? state.corridor : projs[0];
-  el.innerHTML = `
-    <div class="panel-h">Three lenses, one corridor <span class="badge desc">DESCRIPTIVE</span></div>
-    <div class="panel-sub">Investment approvals → lights → house prices around the opening (dashed line) for one corridor at a time.</div>
-    <div class="controls-row"><select id="tlsel">${projs.map(p => `<option value="${p}" ${p === cur ? "selected" : ""}>${fname(p)}</option>`).join("")}</select></div>
-    <div id="tl-charts"></div>
-    <div class="note-box">Investment is approved <b>before</b> openings (and is lumpy), lights respond <b>at</b> opening, prices build <b>after</b> — three clocks, one corridor. Magnitudes here are raw series, not effects.</div>`;
-  document.getElementById("tlsel").onchange = e => { state.corridor = e.target.value;
-    document.getElementById("corridorsel").value = state.corridor;
-    if (window.__syncCorridorTrigger) window.__syncCorridorTrigger();
-    renderSide(); refreshMapOnly(); };
-  drawThreeLens(cur);
-}
-function drawThreeLens(proj) {
-  const tl = results.three_lens_timeline.filter(r => r.project === proj);
-  const measures = [...new Set(tl.map(r => r.measure))];
-  const wrap = document.getElementById("tl-charts");
-  wrap.innerHTML = measures.map((m, i) => `<div class="muted-s" style="margin:2px 0 1px">${m}</div><div id="tlc${i}" class="chart short"></div>`).join("");
-  const colors = ["#ffd23f", "#53e8ff", "#34d399"];
-  measures.forEach((m, i) => {
-    const rows = tl.filter(r => r.measure === m).sort((a, b) => a.year - b.year);
-    const open = rows.find(r => r.opening != null && r.opening !== 0);
-    const openYear = open ? (open.opening === 1 ? open.year : open.opening) : meta.openings[proj];
-    const years = rows.map(r => r.year);
-    mkChart(`tlc${i}`, {
-      tooltip: TIP, grid: { left: 44, right: 12, top: 8, bottom: 20 },
-      xAxis: AXIS({ type: "category", data: years }),
-      yAxis: AXIS({ type: "value", scale: true }),
-      series: [{ type: "line", data: rows.map(r => r.value), showSymbol: false,
-        lineStyle: { width: 2, color: colors[i % 3] }, itemStyle: { color: colors[i % 3] },
-        areaStyle: { color: colors[i % 3] + "14" },
-        markLine: openYear && years.includes(openYear) ? { symbol: "none", label: { show: false },
-          lineStyle: { color: "#ffd23f", type: "dashed" }, data: [{ xAxis: years.indexOf(openYear) }] } : undefined }],
-    });
-  });
-}
-
 /* ---- Guide tab ---- */
 function renderGuide(el) {
   const steps = [
     ["The question",
-     "Malaysia spent billions on rail lines, bridges and expressways. Did the places they touch actually become more economically active — or would they have grown anyway?",
+     "Malaysia spent billions on rail lines, bridges and expressways. Did the places they touch visibly light up at night — a proxy for local economic activity?",
      null],
-    ["The measurement problem",
-     "GDP doesn't exist at the level of a town or a 1-km square. So we use <b>satellite nightlights</b> — NASA's Black Marble radiance — as the spatial footprint of economic activity. Brighter ≠ richer in ringgit, but more light tracks more buildings, traffic and commerce.",
+    ["The measurement",
+     "We use <b>satellite nightlights</b> — NASA's Black Marble radiance — as the spatial footprint of activity. Brighter ≠ richer in ringgit, but more light tracks more buildings, traffic and commerce.",
      null],
     ["The grid",
-     "We cut the country into <b>186,103 one-km cells</b> and measure each one's brightness every quarter from 2012 to 2024. Every cell is tagged with its nearest corridor and its distance to the route.",
+     "The country is cut into <b>186,103 one-km cells</b>, each measured every quarter from 2012 to 2024. Every cell is tagged with its nearest corridor and its distance to the route.",
      "Try: hover any lit cell on the map"],
-    ["The comparison",
-     "Cells <b>≤ 5 km</b> from a corridor are 'near'; the <b>20–30 km</b> ring is 'far'. If the corridor matters, near should pull away from far <b>after</b> the opening — and not before. That before/after, near/far contrast is a <b>difference-in-differences</b>. Corridors opened in different years, which breaks naïve regressions, so we use modern estimators (Callaway–Sant'Anna, imputation) alongside the classic TWFE.",
-     "Try: press ▶ and watch the 🚩 opening flag"],
-    ["Three lenses",
-     "Lights are one lens. We repeat the same design on <b>house prices</b> (NAPIC's index — where benefits get capitalised) and <b>approved investment</b> (MIDA — where money is committed). Three datasets, one identification strategy.",
-     "Try: the toggle buttons in the top bar"],
-    ["The verdict",
-     "Lights: a real, persistent effect (+0.9–2.7 nW, 10% significance). Prices: builds to ≈ +10%, robust. Investment: the estimators disagree so sharply the only honest answer is 'not identifiable'. That disagreement is itself the methodological headline.",
-     "Try: the Results tab"],
+    ["Near vs far",
+     "Cells <b>≤ 5 km</b> from a corridor are 'near'; the <b>20–30 km</b> ring is 'far'. Watching the near line against the outer ring around each opening shows, descriptively, whether brightness pulled away after the corridor arrived.",
+     "Try: press ▶ and watch the opening line"],
     ["Drive it yourself",
-     "Pick a corridor from the amber dropdown · scrub or play the quarter slider · double-click a route to zoom · click any cell for its 12-year history · hover stations for details · switch layers for GDP, investment and prices.",
+     "Pick a corridor from the amber dropdown · scrub or play the quarter slider · double-click a route to zoom · click any cell for its full 2012–2024 radiance history · hover stations for details.",
      null],
   ];
   el.innerHTML = `
     <div class="panel-h">What is this dashboard doing?</div>
-    <div class="panel-sub">Seven steps from question to verdict.</div>
+    <div class="panel-sub">A guided tour of the nightlights view.</div>
     ${steps.map(([h, p, t], i) => `
       <div class="gstep"><div class="gnum">${i + 1}</div>
         <div><h4>${h}</h4><p>${p}</p>${t ? `<span class="try">💡 ${t}</span>` : ""}</div>
       </div>`).join("")}
-    <div class="note-box"><b>One rule everywhere:</b> maps and time series are descriptive. The causal numbers — and their caveats — live in the Results tab only.</div>`;
+    <div class="note-box"><b>Read it as description, not proof:</b> the maps and time series visualise nighttime radiance around the corridors. They show patterns, not causal effects.</div>`;
 }
 
 /* ---- About tab ---- */
 function renderAbout(el) {
   el.innerHTML = `<div class="about">
     <div class="panel-h">About this dashboard</div>
-    <p>Companion explorer for <i>“Three Lenses, One Corridor”</i> — a study measuring how Malaysia's
-    transport corridors changed local economic activity, using a staggered difference-in-differences design
-    over 2012–2024 with three outcome lenses: satellite nightlights, house prices and approved investment.</p>
-    <h3>Design in one paragraph</h3>
-    <p>Each 1-km cell is assigned to its nearest corridor. <b>Treated</b> cells sit within the mode's catchment
-    (500 m urban rail / 3 km urban highway / 5 km intercity); <b>controls</b> are the 20–30 km outer ring and
-    not-yet-opened corridors. Estimators: TWFE, Callaway–Sant'Anna, and DiD imputation. Identification leans
-    on the spatially clean intercity corridors; Klang Valley urban corridors carry contamination caveats.</p>
-    <h3>Honesty rules baked into this UI</h3>
+    <p>A nighttime-lights explorer for Malaysia's transport corridors — visualising how satellite radiance
+    around rail lines, bridges and expressways evolved over 2012–2024, quarter by quarter.</p>
+    <h3>How cells are organised</h3>
+    <p>The country is split into 186,103 one-km cells. Each is assigned to its nearest corridor and tagged with
+    its distance to the route, so you can compare <b>near</b> cells (≤ 5 km) against the <b>20–30 km</b> outer ring
+    around each opening. These comparisons are descriptive context, not causal estimates.</p>
+    <h3>Reading the lights</h3>
     <ul>
-      <li>Maps and time series are <b>descriptive</b>; causal numbers live only in Results.</li>
-      <li>NTL ≠ GDP: lights are the <b>spatial footprint</b> of activity, never given a ringgit value, and no NTL→GDP elasticity is shown anywhere.</li>
-      <li>Radiance is displayed in <b>levels</b> (nW/cm²/sr) — % changes off dark rural baselines mislead.</li>
-      <li>NTL significance is stated at the <b>10% level</b>; the C–S +2.42 nW figure is the 49-station estimate, not cell-level.</li>
-      <li>MIDA is labelled <b>not identifiable</b> — its TWFE +66% fails pre-trends and is reported as a non-result.</li>
+      <li>Radiance is shown in <b>levels</b> (nW/cm²/sr) — % changes off dark rural baselines mislead.</li>
+      <li>Nightlights are the <b>spatial footprint</b> of activity, not a ringgit value; brighter ≠ richer.</li>
+      <li>Maps and time series here are <b>descriptive</b> visualisations, not effect sizes.</li>
     </ul>
     <h3>Data &amp; credits</h3>
     <ul>
       <li><b>Nightlights:</b> NASA Black Marble (VNP46A3), 1-km, calendar-quarter aggregates, 2012Q1–2024Q1, 186,103 cells.</li>
-      <li><b>House prices:</b> NAPIC Malaysian House Price Index, 27 regions, annual.</li>
-      <li><b>District GDP:</b> OpenDOSM (real, 2015 prices, supply side), 2015–2020. Boundaries: DOSM geodata.</li>
-      <li><b>Investment:</b> MIDA approved capital investment via CEIC, by state, annual.</li>
       <li><b>Basemap:</b> © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.</li>
     </ul>
-    <p class="muted-s">Static site — all analysis precomputed; no tracking, no backend. Map cells are loaded one quarter at a time (~370 KB each).</p>
+    <p class="muted-s">Static site — all data precomputed; no tracking, no backend. Map cells are loaded one quarter at a time (~370 KB each).</p>
   </div>`;
 }
 
 /* ============================ url hash =========================== */
 function writeHash() {
-  const h = `l=${state.layer}&c=${state.corridor}&t=${state.t}&tab=${state.tab}`;
+  const h = `c=${state.corridor}&t=${state.t}&tab=${state.tab}`;
   history.replaceState(null, "", "#" + h);
 }
 function parseHash() {
   const h = new URLSearchParams(location.hash.slice(1));
-  if (h.get("l") && ["ntl","gdp","mida","mhpi"].includes(h.get("l"))) state.layer = h.get("l");
   if (h.get("c") && (h.get("c") === "all" || meta.projects.includes(h.get("c")))) state.corridor = h.get("c");
   if (h.get("t") != null) { const t = +h.get("t"); if (t >= 0 && t < meta.quarters.length) state.t = t; }
-  if (h.get("tab")) state.tab = h.get("tab");
+  if (h.get("tab") && ["explore","guide","about"].includes(h.get("tab"))) state.tab = h.get("tab");
 }
 
 boot().catch(err => {

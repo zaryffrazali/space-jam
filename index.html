@@ -4,9 +4,9 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Space Jam: Seeing Megaprojects From Space</title>
-<meta name="description" content="Interactive explorer for Malaysia's transport-corridor impact study: nighttime lights (NASA Black Marble), house prices (NAPIC MHPI), district GDP (OpenDOSM) and approved investment (MIDA/CEIC)."/>
+<meta name="description" content="Interactive explorer for Malaysia's transport corridors: satellite nighttime lights (NASA Black Marble), 1-km cells, quarterly 2012–2024."/>
 <link rel="stylesheet" href="lib/maplibre-gl.css"/>
-<link rel="stylesheet" href="style.css?v=28"/>
+<link rel="stylesheet" href="style.css?v=29"/>
 <link rel="icon" type="image/png" sizes="32x32" href="img/favicon_32.png"/>
 <link rel="icon" type="image/png" sizes="64x64" href="img/favicon_64.png"/>
 <link rel="apple-touch-icon" href="img/favicon_64.png"/>
@@ -19,7 +19,7 @@
     <span class="star">★</span>
     <h1>Space Jam: Seeing Megaprojects From Space</h1>
     <span class="star c">★</span>
-    <span class="msub">Malaysia transport corridors · 2012–2024 · 1-km nightlights, prices, GDP &amp; investment</span>
+    <span class="msub">Malaysia transport corridors · 2012–2024 · 1-km quarterly nightlights</span>
   </div>
   <header>
     <img id="deathstar" src="img/death_star_8bit.png" alt="" title="That's no moon."/>
@@ -30,9 +30,6 @@
       </div>
       <div class="seg" id="layerseg">
         <button data-layer="ntl" class="active" title="NASA Black Marble radiance, 1-km cells, quarterly">Nightlights</button>
-        <button data-layer="gdp" title="OpenDOSM district GDP (real, supply side), annual 2015–2020">District GDP</button>
-        <button data-layer="mida" title="MIDA approved capital investment by state (CEIC), annual">Investment</button>
-        <button data-layer="mhpi" title="NAPIC house price index, 27 regions, annual">House prices</button>
         <span id="credit">CREDIT 49/49 QTRS</span>
       </div>
     </div>
@@ -41,10 +38,6 @@
       <label class="chk"><input type="checkbox" id="ck-buffers"/>30-km buffers</label>
       <label class="chk"><input type="checkbox" id="ck-dim" checked/>Dim others</label>
     </div>
-    <div class="hgroup" id="gdpopts" style="display:none">
-      <label for="sectorsel">Sector</label>
-      <select id="sectorsel"></select>
-    </div>
   </header>
 
   <div id="main">
@@ -52,7 +45,6 @@
       <div id="map"></div>
       <div id="layerbadge">
         <div class="title" id="layertitle"></div>
-        <span class="badge warn" id="midabadge" style="display:none">MIDA EFFECT NOT IDENTIFIABLE — levels only</span>
         <div id="corridorcard"></div>
       </div>
       <div id="maphint">double-click a corridor route to zoom · click a cell for its history</div>
@@ -76,9 +68,6 @@
       <div id="tabs">
         <button data-tab="explore" class="active">Explore</button>
         <button data-tab="guide">Guide</button>
-        <button data-tab="results">Results</button>
-        <button data-tab="construction">Construction</button>
-        <button data-tab="threelens">Three lenses</button>
         <button data-tab="about">About</button>
       </div>
       <div id="sidebody"></div>
@@ -89,6 +78,6 @@
 <script src="lib/maplibre-gl.js"></script>
 <script src="lib/deck.gl.min.js"></script>
 <script src="lib/echarts.min.js"></script>
-<script src="app.js?v=28"></script>
+<script src="app.js?v=29"></script>
 </body>
 </html>
