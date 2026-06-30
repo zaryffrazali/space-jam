@@ -45,6 +45,22 @@ const COMPLETED_BY_DATA_END = ["SenaiDesaru","Penang2ndBridge","ETS","LRT_KJ_Ext
   "MRT1_SBK","GemasJB","MRT2_SSP","DUKE2","SUKE","DASH","SPE","DUKE3","WCE"];
 const UC_BY_DATA_END = ["ECRL","PanBorneoSabah","PanBorneoSarawak","EKVE","LRT3","RTS_Link"];
 
+/* loader failure UI — stops the arcade cycler and shows a real, retryable message.
+   Without this, any boot error stays hidden behind the looping "INSERT COIN" text,
+   so a failed load looks identical to a perpetual loading screen. */
+function failLoader(title, detail) {
+  clearInterval(window.__loaderCycler);
+  clearTimeout(window.__bootWatchdog);
+  const lt = document.getElementById("loadertext");
+  if (lt) {
+    lt.innerHTML = `<b style="color:#ff6b6b">${title}</b>` +
+      (detail ? `<br/><span style="font-size:12px;color:#cbd5e1">${detail}</span>` : "") +
+      `<br/><br/><button onclick="location.reload()" style="font:inherit;font-size:12px;padding:6px 16px;background:#ffd23f;color:#111;border:0;border-radius:4px;cursor:pointer">RETRY</button>`;
+    lt.style.cssText = "max-width:460px;text-align:center;line-height:1.6;font-size:14px";
+  }
+  const ds = document.querySelector("#loader .ds"); if (ds) ds.style.animationPlayState = "paused";
+}
+
 /* ============================= boot ============================= */
 async function boot() {
   const bootStart = Date.now();   // enforce a minimum loader time (arcade "boot" feel)
@@ -68,8 +84,16 @@ async function boot() {
   lt.textContent = PHRASES[0];
   const cycler = setInterval(() => { pi = (pi + 1) % PHRASES.length; lt.textContent = PHRASES[pi]; }, 640);
   window.__loaderCycler = cycler;
+  // watchdog: if boot stalls (e.g. a data file held open by a corporate proxy/DLP),
+  // stop the cycling loader and show an actionable message instead of spinning forever
+  window.__bootStage = "starting";
+  window.__bootWatchdog = setTimeout(() => failLoader("Still loading…",
+    `A required file looks blocked or very slow on this network (stalled at: ${window.__bootStage}). ` +
+    "This is common on work networks that inspect downloads. Try a different network, or ask IT to allow github.io."), 25000);
 
+  window.__bootStage = "site metadata (meta.json)";
   meta = await (await fetch(DATA + "meta.json")).json();
+  window.__bootStage = "cell grid (cells.bin, ~1.4 MB)";
   const cb = new Uint8Array(await (await fetch(DATA + "cells.bin")).arrayBuffer());
   const n = meta.n_cells, [w, s, e, no] = meta.bbox;
   const qlon = new Uint16Array(cb.buffer, 0, n), qlat = new Uint16Array(cb.buffer, 2 * n, n);
@@ -83,6 +107,7 @@ async function boot() {
     positions[2 * i + 1] = s + qlat[i] / 65535 * (no - s);
   }
 
+  window.__bootStage = "corridor data (ts_ntl, stations, routes, buffers)";
   [tsNTL, stationsData, routesGeo, buffersGeo] =
     await Promise.all(["ts_ntl.json","stations.json","routes.geojson","buffers.geojson"]
       .map(f => fetch(DATA + f).then(r => r.json())));
@@ -108,12 +133,14 @@ async function boot() {
   initMap();
   buildQBlocks();
   if (intro) state.t = 0;               // intro autoplay starts from 2012 Q1
+  window.__bootStage = "first nightlights quarter";
   await ensureQuarter(state.t);
   refreshAll();
   // hold the loader for at least 4.5s (every load/refresh) for the arcade boot feel
   const wait = Math.max(0, 4500 - (Date.now() - bootStart));
   await new Promise(r => setTimeout(r, wait));
   clearInterval(window.__loaderCycler);
+  clearTimeout(window.__bootWatchdog);
   document.getElementById("loader").classList.add("hide");
   if (intro) introSequence();
 }
@@ -926,6 +953,8 @@ function parseHash() {
 }
 
 boot().catch(err => {
-  document.getElementById("loadertext").textContent = "Failed to load: " + err.message;
   console.error(err);
+  failLoader("Couldn't load the dashboard",
+    `${err && err.message ? err.message : err} (stage: ${window.__bootStage || "startup"}). ` +
+    "If you're on a work network this is likely a proxy blocking a data file. Try a hard refresh (Ctrl/Cmd+Shift+R) or a different network.");
 });
