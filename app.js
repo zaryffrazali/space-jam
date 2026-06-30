@@ -3,6 +3,9 @@
 "use strict";
 
 const DATA = "data/";
+// WIP: the side panel (Explore / Guide / About) is hidden for now while it's reworked.
+// All the panel code below is left intact — flip this to true to restore it.
+const SIDEBAR_ENABLED = false;
 
 const state = {
   layer: "ntl", corridor: "DASH", t: 48,        // t = quarter index for NTL
@@ -82,6 +85,7 @@ async function boot() {
     const dsEl = document.querySelector("#loader .ds"); if (dsEl) dsEl.style.display = "none";
     return;
   }
+  if (!SIDEBAR_ENABLED) document.getElementById("app").classList.add("no-side");
   // cycle arcade flavour text while loading
   const PHRASES = [
     "INSERT COIN", "ALIGNING ORBIT", "COUNTING PHOTONS OVER SELANGOR",
@@ -389,7 +393,7 @@ function initMap() {
   overlay = new deck.MapboxOverlay({
     interleaved: false, layers: [], getTooltip,
     onClick: info => {
-      if (info.layer && info.layer.id === "ntl-cells" && info.index >= 0) openDrill(info.index);
+      if (SIDEBAR_ENABLED && info.layer && info.layer.id === "ntl-cells" && info.index >= 0) openDrill(info.index);
       else if (info.layer && info.layer.id === "routes" && info.object) {
         // single click selects; double-click (below) zooms
         setCorridor(info.object.properties.project);
@@ -766,6 +770,7 @@ function refreshAll() { syncLayerUI(); refreshMapOnly(); renderSide(); writeHash
 
 /* =========================== side panel ========================== */
 function renderSide() {
+  if (!SIDEBAR_ENABLED) return;   // panel hidden for now (map-only)
   syncTabs();
   const el = document.getElementById("sidebody");
   Object.values(charts).forEach(c => c.dispose());

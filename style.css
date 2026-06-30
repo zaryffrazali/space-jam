@@ -154,6 +154,9 @@ select{background:var(--panel2);color:var(--text);border:2px solid var(--border)
 #maphint{position:absolute;top:14px;right:62px;z-index:10;background:var(--panel);border:2px solid var(--border);border-radius:0;padding:5px 9px;font-size:10px;color:var(--muted);backdrop-filter:blur(6px);box-shadow:var(--hard-s)}
 
 /* ---------- sidebar ---------- */
+/* WIP: side panel hidden for now (map-only) — the map flexes to fill the space.
+   Restore the panel by removing the .no-side class (set SIDEBAR_ENABLED=true in app.js). */
+#app.no-side #side,#app.no-side #sidetoggle,#app.no-side #maphint{display:none}
 #side{width:400px;flex:none;background:var(--panel-solid);border-left:2px solid var(--border);display:flex;flex-direction:column;min-height:0}
 #tabs{display:flex;border-bottom:2px solid var(--border);flex:none}
 #tabs button{flex:1;background:none;border:0;color:var(--muted);font-size:11px;padding:10px 4px;cursor:pointer;font-family:inherit;border-bottom:3px solid transparent;border-right:1px solid var(--border)}
