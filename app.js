@@ -45,6 +45,14 @@ const COMPLETED_BY_DATA_END = ["SenaiDesaru","Penang2ndBridge","ETS","LRT_KJ_Ext
   "MRT1_SBK","GemasJB","MRT2_SSP","DUKE2","SUKE","DASH","SPE","DUKE3","WCE"];
 const UC_BY_DATA_END = ["ECRL","PanBorneoSabah","PanBorneoSarawak","EKVE","LRT3","RTS_Link"];
 
+/* decode a base64 string into raw bytes. Data files ship as base64 inside .json
+   (not raw .bin) because some corporate proxies block binary downloads but pass text. */
+function b64ToBytes(b64) {
+  const bin = atob(b64), n = bin.length, out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 /* loader failure UI — stops the arcade cycler and shows a real, retryable message.
    Without this, any boot error stays hidden behind the looping "INSERT COIN" text,
    so a failed load looks identical to a perpetual loading screen. */
@@ -93,8 +101,8 @@ async function boot() {
 
   window.__bootStage = "site metadata (meta.json)";
   meta = await (await fetch(DATA + "meta.json")).json();
-  window.__bootStage = "cell grid (cells.bin, ~1.4 MB)";
-  const cb = new Uint8Array(await (await fetch(DATA + "cells.bin")).arrayBuffer());
+  window.__bootStage = "cell grid (cells.json, ~1.9 MB)";
+  const cb = b64ToBytes((await (await fetch(DATA + "cells.json")).json()).b64);
   const n = meta.n_cells, [w, s, e, no] = meta.bbox;
   const qlon = new Uint16Array(cb.buffer, 0, n), qlat = new Uint16Array(cb.buffer, 2 * n, n);
   pcode = new Uint8Array(cb.buffer, 4 * n, n);
@@ -207,8 +215,8 @@ function buildLUTs() {
 async function ensureQuarter(t) {
   const tid = meta.tid_of[meta.quarters[t]];
   if (quarterCache.has(tid)) return quarterCache.get(tid);
-  const buf = await (await fetch(`${DATA}ntl/q_${tid}.bin`)).arrayBuffer();
-  const arr = new Uint16Array(buf);
+  const bytes = b64ToBytes((await (await fetch(`${DATA}ntl/q_${tid}.json`)).json()).b64);
+  const arr = new Uint16Array(bytes.buffer);
   quarterCache.set(tid, arr);
   return arr;
 }
@@ -853,14 +861,8 @@ async function openDrill(idx) {
     const tid = meta.tid_of[meta.quarters[t]];
     let arr = quarterCache.get(tid);
     if (!arr) {
-      try {
-        const r = await fetch(`${DATA}ntl/q_${tid}.bin`, { headers: { Range: `bytes=${idx*2}-${idx*2+1}` } });
-        if (r.status === 206) {
-          const b = new Uint8Array(await r.arrayBuffer());
-          series.push(decodeVal(b[0] | (b[1] << 8)));
-          continue;
-        } else { arr = new Uint16Array(await r.arrayBuffer()); quarterCache.set(tid, arr); }
-      } catch (err) { series.push(null); continue; }
+      try { arr = await ensureQuarter(t); }   // fetch+cache the full quarter (json, base64)
+      catch (err) { series.push(null); continue; }
     }
     series.push(decodeVal(arr[idx]));
   }
